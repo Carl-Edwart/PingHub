@@ -1,0 +1,66 @@
+{
+  "instituicao": "Sua Instituição",
+  "ultimaAtualizacao": "2025-03-29",
+  "regrasBasicas": [
+    {
+      "id": "local_1",
+      "titulo": "Uso da Mesa",
+      "categoria": "mesa",
+      "regra": "Não encostar, bater ou apoiar na mesa durante o jogo. Apenas toques com a raquete são permitidos."
+    },
+    {
+      "id": "local_2",
+      "titulo": "Não Apoiar na Estrutura",
+      "categoria": "mesa",
+      "regra": "Não é permitido colocar as mãos ou o corpo na estrutura ou suporte da mesa para ganhar equilíbrio ou vantagem."
+    },
+    {
+      "id": "local_3",
+      "titulo": "Respeitar o Espaço",
+      "categoria": "seguranca",
+      "regra": "Manter distância segura da mesa. Não bloquear a visão ou o movimento do adversário."
+    },
+    {
+      "id": "local_4",
+      "titulo": "Equipamento em Boas Condições",
+      "categoria": "equipamento",
+      "regra": "Raquetes e bolas devem estar em bom estado. Cabos da rede devem estar bem presos."
+    },
+    {
+      "id": "local_5",
+      "titulo": "Área de Circulação",
+      "categoria": "seguranca",
+      "regra": "Manter a área ao redor da mesa livre de obstáculos e pessoas não envolvidas no jogo."
+    },
+    {
+      "id": "local_6",
+      "titulo": "Limpeza",
+      "categoria": "manutencao",
+      "regra": "Limpar a mesa antes e após o uso. Não deixar água ou suor na superfície para evitar danos."
+    },
+    {
+      "id": "local_7",
+      "titulo": "Respeito ao Adversário",
+      "categoria": "conduta",
+      "regra": "Manter respeito ao adversário. Sem xingamentos, agressões verbais ou físicas. Dúvidas são decididas pelo árbitro ou acordo mútuo."
+    },
+    {
+      "id": "local_8",
+      "titulo": "Tempo de Jogo",
+      "categoria": "geral",
+      "regra": "Máximo de 2 horas por uso contínuo. Intervalo de 15 minutos entre usos para descanso do equipamento."
+    },
+    {
+      "id": "local_9",
+      "titulo": "Proibido Fumar, Comer e Beber",
+      "categoria": "seguranca",
+      "regra": "Não é permitido fumar, comer ou beber próximo à mesa. Apenas água em garrafas fechadas é permitida."
+    },
+    {
+      "id": "local_10",
+      "titulo": "Sapatos Fechados",
+      "categoria": "seguranca",
+      "regra": "Usar sapatos fechados e apropriados para atividade física. Evita acidentes e lesões nos pés."
+    }
+  ]
+}

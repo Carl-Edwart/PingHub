@@ -1,0 +1,112 @@
+{
+  "tecnicas": [
+    {
+      "id": "tec_01",
+      "titulo": "Drive (Ataque Ofensivo)",
+      "nivel": "beginner",
+      "categoria": "ofensivo",
+      "descricao": "Golpe fundamental de ataque com rotação de topspin. Executado com a raquete acima do nível da mesa, moviendo em um arco de cima para baixo. Gera rotação dianteira forte.",
+      "quando": "Quando a bola vem alta ou na altura do toque. Usado para ganhar pontos em bolas altas.",
+      "dica": "Mantenha o cotovelo perto do corpo. Rotação do quadril é fundamental para aumentar potência."
+    },
+    {
+      "id": "tec_02",
+      "titulo": "Push ou Bloqueio",
+      "nivel": "beginner",
+      "categoria": "defensivo",
+      "descricao": "Movimento defensivo para responder bolas com topspin baixo. Executado com a raquete inclinada para baixo, empurrando a bola para frente com backspin.",
+      "quando": "Quando enfrentando bolas muito baixas ou com muita rotação. Impede que o adversário ganhe altura.",
+      "dica": "Angule a raquete para baixo. Use movimento curto e rápido. Ideal para manter o rali vivo."
+    },
+    {
+      "id": "tec_03",
+      "titulo": "Topspin (Rotação Dianteira)",
+      "nivel": "intermediate",
+      "categoria": "ofensivo",
+      "descricao": "Golpe avançado que coloca rotação dianteira extrema na bola. Resulta em arco baixo e rápido, dificultando a leitura do adversário. Bola 'voa' para frente.",
+      "quando": "Em rallies quando a bola está na altura ideal (joelhos até cintura). Pressiona o adversário.",
+      "dica": "Comece com raquete baixa, acábando alto. Brushe a bola com força de cima para baixo. Distância da mesa é importante."
+    },
+    {
+      "id": "tec_04",
+      "titulo": "Backspin (Rotação Inversa)",
+      "nivel": "intermediate",
+      "categoria": "defensivo",
+      "descricao": "Rotação contrária ao movimento da bola. Cria um efeito no qual a bola freia ou até volta. Fundamental para defesa e preparação.",
+      "quando": "Para defender contra ataques fortes. Prepara bolas altas para o adversário atacar.",
+      "dica": "Use movimento de cima para baixo, com raquete inclinada para trás. Brush a bola levemente."
+    },
+    {
+      "id": "tec_05",
+      "titulo": "Loop Drive",
+      "nivel": "advanced",
+      "categoria": "ofensivo",
+      "descricao": "Versão agressiva do drive com topspin extremo. Executado com movimento amplo e velocidade controlada, colocando muita rotação e potência.",
+      "quando": "Em situações de ataque direto. Quando quer finalizar o rali com força controlada.",
+      "dica": "Amplo movimento de preparação, rotação de quadril, explosão ao impacto. Prática é fundamental."
+    },
+    {
+      "id": "tec_06",
+      "titulo": "Ataque Rápido (Flip)",
+      "nivel": "intermediate",
+      "categoria": "ofensivo",
+      "descricao": "Golpe rápido executado muito perto da rede, contra bolas baixas. Usa movimento curto com topspin para ganhar o ponto ofensivamente.",
+      "quando": "Contra bloqueios ou serviços curtos. Ideal para não deixar o adversário recuperar.",
+      "dica": "Mão perto do corpo. Movimento explosivo e rápido. Executado próximo à rede."
+    },
+    {
+      "id": "tec_07",
+      "titulo": "Bloqueio de Topspin",
+      "nivel": "intermediate",
+      "categoria": "defensivo",
+      "descricao": "Defesa contra topspin usando movimento curto e inclinação de raquete. Cria backspin para complicar o ataque do adversário.",
+      "quando": "Quando o adversário está atacando com topspin. Mantém o rali vivo no meio da mesa.",
+      "dica": "Raquete inclinada para trás. Movimento suave e controlado. Foco em devolução rápida."
+    },
+    {
+      "id": "tec_08",
+      "titulo": "Chop (Cortada)",
+      "nivel": "advanced",
+      "categoria": "defensivo",
+      "descricao": "Defesa agressiva com movimento de cima para baixo em um ângulo amplo. Cria backspin extremo e força o adversário a atacar de novo.",
+      "quando": "Para desorganizar o ataque do adversário. Ideal quando quer ganhar tempo e pressão psicológica.",
+      "dica": "Movimento amplo, raquete acima do ombro. Brush para baixo. Geralmente executada perto de linha de fundo."
+    },
+    {
+      "id": "tec_09",
+      "titulo": "Lob (Bandeja)",
+      "nivel": "advanced",
+      "categoria": "defensivo",
+      "descricao": "Golpe defensivo para bolas altas. Levanta a bola para quadra fundo, recuperando posição defensiva e forçando o adversário a atacar novamente.",
+      "quando": "Contra smash ou ball alto do adversário. Recupera posição ofensiva depois.",
+      "dica": "Use principalmente quando está perto da rede. Movimento alto e controlado. Coloque backspin para controlar."
+    },
+    {
+      "id": "tec_10",
+      "titulo": "Serviço com Topspin Curto",
+      "nivel": "intermediate",
+      "categoria": "servico",
+      "descricao": "Serviço que sai perto da rede do lado do adversário, com muita rotação dianteira. Força um retorno agressivo ou fraco.",
+      "quando": "Para forçar o adversário a arriscar no retorno. Ganha muitos pontos diretos.",
+      "dica": "Bola sai da raquete perto da rede. Brush para gerar rotação. Altura da mesa é crítica."
+    },
+    {
+      "id": "tec_11",
+      "titulo": "Serviço Longo com Backspin",
+      "nivel": "intermediate",
+      "categoria": "servico",
+      "descricao": "Serviço que vai até o fundo da mesa com backspin. Prepara para loop ou topspin ofensivo Logo depois.",
+      "quando": "Para variar as profundidades de saque. Força o adversário à linha de fundo.",
+      "dica": "Solte a bola mais para frente que normal. Use movimento de baixo para cima, inclinando raquete para trás."
+    },
+    {
+      "id": "tec_12",
+      "titulo": "Smash (Mate)",
+      "nivel": "advanced",
+      "categoria": "ofensivo",
+      "descricao": "Golpe ofensivo executado contra bola muito alta. Movimento rápido e agressivo que finaliza o rali com força e velocidade.",
+      "quando": "Contra lobs ou bolas muito altas. Golpe finalizador.",
+      "dica": "Posição de ataque. Impacto acima. Máxima potência com controle. Executado no meio da quadra."
+    }
+  ]
+}

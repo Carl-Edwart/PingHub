@@ -1,0 +1,134 @@
+{
+  "categories": {
+    "servico": {
+      "title": "Serviço",
+      "rules": [
+        {
+          "id": "srv_1",
+          "title": "Posição Initial",
+          "description": "O jogador deve ficar atrás da linha de fundo, com os pés fora da mesa. A bola deve estar repouso na palma da mão aberta, acima do nível da mesa."
+        },
+        {
+          "id": "srv_2",
+          "title": "Toque no Serviço",
+          "description": "A bola deve ser lançada verticalmente para cima, sem efeito de rotação, a uma altura mínima de 16 cm acima da palma. Deve-se bater na bola quando ela cai, atrás da linha de fundo."
+        },
+        {
+          "id": "srv_3",
+          "title": "Primeiro Saque - Bloqueio",
+          "description": "Se o serviço for bloqueado contra a rede (net), o jogador deve sacar novamente sem perder ponto. Se sair da mesa do lado oposto, é ponto para o adversário."
+        },
+        {
+          "id": "srv_4",
+          "title": "Rotação de Saque",
+          "description": "Cada jogador tem direito a 2 saques consecutivos. Após 2 saques, o direito passa ao adversário. Em 10x10, ambos têm direito a 1 saque."
+        }
+      ]
+    },
+    "pontuacao": {
+      "title": "Sistema de Pontuação",
+      "rules": [
+        {
+          "id": "pts_1",
+          "title": "Pontos por Set",
+          "description": "Primeiro a atingir 11 pontos ganha o set, desde que tenha uma vantagem mínima de 2 pontos. Se empatar em 10x10, continua até alguém conseguir 2 pontos de diferença (ex: 12x10, 13x11, etc)."
+        },
+        {
+          "id": "pts_2",
+          "title": "Melhor de N Sets",
+          "description": "Uma partida pode ser melhor de 3, 5 ou 7 sets. Primeiro a vencer a maioria dos sets ganha a partida (ex: 3 sets = vencer 2, 5 sets = vencer 3)."
+        },
+        {
+          "id": "pts_3",
+          "title": "Pontos Recebidos",
+          "description": "Ganha ponto o jogador que acertar a bola sobre a mesa do adversário de forma que ele não possa fazer um retorno válido, ou se o adversário cometer uma falta."
+        },
+        {
+          "id": "pts_4",
+          "title": "Morte na Bola",
+          "description": "Se a bola bater na rede durante uma troca válida (sem ser saque), o ponto continua. Se for no saque, repete-se o saque."
+        }
+      ]
+    },
+    "equipamentos": {
+      "title": "Equipamentos",
+      "rules": [
+        {
+          "id": "eqp_1",
+          "title": "Raquete",
+          "description": "Deve ter superficie lisa de cortiça ou madeira de pelo menos 85% de sua composição. Os revestimentos (pips) devem ser homologados pela ITTF. Pode ser vermelho de um lado e preto do outro."
+        },
+        {
+          "id": "eqp_2",
+          "title": "Bola",
+          "description": "Esfera de celulóide ou plástico com diâmetro de 40mm (±0,5mm) e peso de 2,7g (±0,1g). Deve ser branca ou laranja. Dureza entre 44-52."
+        },
+        {
+          "id": "eqp_3",
+          "title": "Mesa",
+          "description": "Superfície retangular de 2,74m x 1,525m x 0,76m de altura. Cor azul escuro com linha branca de 20mm nas laterais. Superfície mate com rebound consistente."
+        },
+        {
+          "id": "eqp_4",
+          "title": "Rede",
+          "description": "Altura de 15,25cm acima da mesa. Comprimento mínimo de 1,83m. Deve estar bem tensionada e firmemente presa aos suportes laterais."
+        }
+      ]
+    },
+    "condutas": {
+      "title": "Condutas e Regras de Jogo",
+      "rules": [
+        {
+          "id": "cdt_1",
+          "title": "Toque Duplo",
+          "description": "A bola só pode tocar uma vez na raquete em cada ataque. Tocar duas vezes = falta e ponto para o adversário."
+        },
+        {
+          "id": "cdt_2",
+          "title": "Mesa Tocada",
+          "description": "Se o jogador tocar a mesa com a mão (que segura a raquete) ou com o corpo durante o córte = falta e ponto para adversário. Exceção: tocar com mão que não segura a raquete é permitido, exceto durante o saque."
+        },
+        {
+          "id": "cdt_3",
+          "title": "Obstáculo",
+          "description": "Se o jogador colocar a mão livre ou corpo na trajetória da bola para impedir um ataque válido = falta. A mão livre também não pode estar sobre a mesa durante o saque."
+        },
+        {
+          "id": "cdt_4",
+          "title": "Pé Fora da Área",
+          "description": "Os pés devem estar sobre ou atrás da linha de fundo durante o saque. Pisar dentro da área enquanto saca = falta."
+        },
+        {
+          "id": "cdt_5",
+          "title": "Desvio Lateral",
+          "description": "Se a bola passar acima da mesa mas fora das linhas laterais = ponto para adversário. Deve passar sobre a superfície da mesa para ser válida."
+        }
+      ]
+    },
+    "geral": {
+      "title": "Regras Gerais",
+      "rules": [
+        {
+          "id": "grl_1",
+          "title": "Intervalo de Descanso",
+          "description": "1 minuto de intervalo entre sets. Intervalo técnico de 1 minuto quando um jogador atinge 6 pontos em um set (nos sets de desempate = em qualquer momento)."
+        },
+        {
+          "id": "grl_2",
+          "title": "Mudança de Lado da Mesa",
+          "description": "A cada set, os jogadores trocam de lado. No set de desempate, quando um jouador atinge 5 pontos, novamente trocam de lado."
+        },
+        {
+          "id": "grl_3",
+          "title": "Retorno Válido",
+          "description": "A bola deve passar sobre a rede e bater antes da linha de fundo do lado do adversário. Pode tocar a linha branca (é válido). Deve passar entre as extensões imaginárias da rede."
+        },
+        {
+          "id": "grl_4",
+          "title": "Bloqueio",
+          "description": "Se a bola bater na rede durante uma troca, mas cair do lado de quem enviou = falta. Se bater e cair do lado do adversário = continua o ponto."
+        }
+      ]
+    }
+  }
+}
