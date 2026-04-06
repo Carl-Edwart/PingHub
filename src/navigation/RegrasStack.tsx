@@ -6,7 +6,7 @@ import { COLORS } from '@/constants/theme';
 
 type RegrasStackParamList = {
   RegrasList: undefined;
-  RegrasDetalhe: { regraId: string };
+  RegrasDetalhe: { ruleId: string };
 };
 
 const Stack = createNativeStackNavigator<RegrasStackParamList>();

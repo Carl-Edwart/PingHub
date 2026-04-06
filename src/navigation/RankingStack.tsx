@@ -1,10 +1,15 @@
 import React from 'react';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createNativeStackNavigator, NativeStackScreenProps } from '@react-navigation/native-stack';
 import RankingListScreen from '@/screens/ranking/RankingListScreen';
 import RankingPerfilScreen from '@/screens/ranking/RankingPerfilScreen';
 import { COLORS } from '@/constants/theme';
 
-const Stack = createNativeStackNavigator();
+export type RankingParamList = {
+  RankingList: undefined;
+  RankingPerfil: { athleteId: string };
+};
+
+const Stack = createNativeStackNavigator<RankingParamList>();
 
 export default function RankingStack() {
   return (

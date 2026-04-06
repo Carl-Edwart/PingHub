@@ -4,7 +4,12 @@ import EstudoBibliotecaScreen from '@/screens/estudo/EstudoBibliotecaScreen';
 import EstudoConteudoScreen from '@/screens/estudo/EstudoConteudoScreen';
 import { COLORS } from '@/constants/theme';
 
-const Stack = createNativeStackNavigator();
+type EstudoStackParamList = {
+  EstudoBiblioteca: undefined;
+  EstudoConteudo: { contentId: string };
+};
+
+const Stack = createNativeStackNavigator<EstudoStackParamList>();
 
 export default function EstudoStack() {
   return (
@@ -17,15 +22,16 @@ export default function EstudoStack() {
         headerTitleStyle: {
           fontWeight: '600',
           fontSize: 18,
+          color: COLORS.primary,
         },
-        headerShadowVisible: false,
+        headerShadowVisible: true,
       }}
     >
       <Stack.Screen
         name="EstudoBiblioteca"
         component={EstudoBibliotecaScreen}
         options={{
-          title: 'Biblioteca',
+          title: 'Biblioteca de Técnicas',
         }}
       />
 
@@ -33,7 +39,7 @@ export default function EstudoStack() {
         name="EstudoConteudo"
         component={EstudoConteudoScreen}
         options={{
-          title: 'Conteúdo',
+          title: 'Aprender Técnica',
         }}
       />
     </Stack.Navigator>

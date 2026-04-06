@@ -1,251 +1,560 @@
-﻿import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { COLORS, SPACING, TYPOGRAPHY } from '@/constants/theme';
-import { Button, Card, Avatar, StatsCard, Divider, Badge } from '@/components';
+﻿import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import React, { useCallback, useState } from "react";
+import {
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
-type Props = NativeStackScreenProps<any, 'AtletaPerfil'>;
+import { Badge, Button, Divider, Loader } from "@/components";
+import { BORDER_RADIUS, COLORS, SPACING } from "@/constants/theme";
+import { AthleteRepository } from "@/database/repositories/athleteRepository";
+import { MatchRepository } from "@/database/repositories/matchRepository";
+import { RankingRepository } from "@/database/repositories/rankingRepository";
+import { useAtletasStore } from "@/store/useAtletasStore";
+import { useRankingStore } from "@/store/useRankingStore";
+import { Athlete, AthleteLevel, PlayStyle } from "@/types/athlete";
+import { Match } from "@/types/match";
+import { RankingEntry } from "@/types/ranking";
+import { formatDate, formatElo } from "@/utils/formatters";
 
-interface AtletaData {
-  id: string;
-  name: string;
-  elo: number;
-  wins: number;
-  losses: number;
-  draws: number;
-  mainStats: Array<{ label: string; value: string }>;
-  recentMatches: Array<{ opponent: string; result: 'W' | 'L' | 'D'; score: string }>;
+type Props = NativeStackScreenProps<any, "AtletaPerfil">;
+
+// Dados completos da tela
+interface PerfilData {
+  atleta: Athlete;
+  ranking: RankingEntry | null;
+  recentMatches: Match[];
 }
 
+const LEVEL_LABELS: Record<AthleteLevel, string> = {
+  [AthleteLevel.BEGINNER]: "Iniciante",
+  [AthleteLevel.INTERMEDIATE]: "Intermediário",
+  [AthleteLevel.ADVANCED]: "Avançado",
+};
+
+const STYLE_LABELS: Record<PlayStyle, string> = {
+  [PlayStyle.ATTACK]: "Ataque",
+  [PlayStyle.DEFENSE]: "Defesa",
+  [PlayStyle.ALL_ROUND]: "All-round",
+};
+
+const STYLE_ICONS: Record<PlayStyle, string> = {
+  [PlayStyle.ATTACK]: "sword",
+  [PlayStyle.DEFENSE]: "shield",
+  [PlayStyle.ALL_ROUND]: "sync",
+};
+
 export default function AtletaPerfilScreen({ route, navigation }: Props) {
-  const { atletaId } = route.params;
-  const [atleta, setAtleta] = useState<AtletaData | null>(null);
+  const { atletaId } = route.params as { atletaId: string };
+  const { deleteAthlete } = useAtletasStore();
+  const { updateElo } = useRankingStore();
+
+  const [data, setData] = useState<PerfilData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadAtletaData();
-  }, [atletaId]);
+  useFocusEffect(
+    useCallback(() => {
+      loadPerfil();
+    }, [atletaId]),
+  );
 
-  const loadAtletaData = async () => {
-    // Mock data
-    setTimeout(() => {
-      setAtleta({
-        id: atletaId,
-        name: 'João Silva',
-        elo: 1850,
-        wins: 24,
-        losses: 8,
-        draws: 2,
-        mainStats: [
-          { label: 'Vitórias', value: '24' },
-          { label: 'Derrotas', value: '8' },
-          { label: 'Empates', value: '2' },
-          { label: 'Taxa', value: '75%' },
-        ],
-        recentMatches: [
-          { opponent: 'Maria Santos', result: 'W', score: '3-1' },
-          { opponent: 'Pedro Costa', result: 'W', score: '3-0' },
-          { opponent: 'Ana Torres', result: 'L', score: '1-3' },
-        ],
-      });
+  const loadPerfil = async () => {
+    setLoading(true);
+    try {
+      const [atleta, ranking, recentMatches] = await Promise.all([
+        AthleteRepository.getById(atletaId),
+        RankingRepository.getByAthleteId(atletaId),
+        MatchRepository.getByAthleteId(atletaId, 8),
+      ]);
+
+      if (!atleta) {
+        navigation.goBack();
+        return;
+      }
+
+      setData({ atleta, ranking, recentMatches });
+    } catch (err) {
+      console.error("Erro ao carregar perfil:", err);
+    } finally {
       setLoading(false);
-    }, 500);
+    }
   };
 
-  if (loading || !atleta) {
-    return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.subtitle}>Carregando...</Text>
-      </View>
+  const handleDelete = () => {
+    Alert.alert(
+      "Excluir atleta",
+      `Deseja excluir "${data?.atleta.name}" permanentemente? Todos os dados de ranking serão removidos.`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Excluir",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await AthleteRepository.delete(atletaId);
+              deleteAthlete(atletaId);
+              navigation.goBack();
+            } catch {
+              Alert.alert("Erro", "Não foi possível excluir o atleta.");
+            }
+          },
+        },
+      ],
     );
-  }
+  };
+
+  // Calcula resultado de uma partida para este atleta
+  const getMatchResult = (
+    match: Match,
+  ): { result: "V" | "D"; label: string; eloChange?: number } => {
+    const isPlayer1 = match.player1.athleteId === atletaId;
+    const sets = match.sets;
+    const p1 = sets.filter((s) => s.player1Score > s.player2Score).length;
+    const p2 = sets.filter((s) => s.player2Score > s.player1Score).length;
+
+    const won = isPlayer1 ? p1 > p2 : p2 > p1;
+    const score = isPlayer1 ? `${p1}-${p2}` : `${p2}-${p1}`;
+
+    return { result: won ? "V" : "D", label: score };
+  };
+
+  const getOpponentName = (match: Match): string => {
+    const isP1 = match.player1.athleteId === atletaId;
+    return isP1 ? match.player2.name : match.player1.name;
+  };
+
+  const getRankColor = (position?: number | null): string => {
+    if (position === 1) return "#F5C518";
+    if (position === 2) return "#C0C0C0";
+    if (position === 3) return "#CD7F32";
+    return COLORS.accent;
+  };
+
+  if (loading) return <Loader />;
+  if (!data) return null;
+
+  const { atleta, ranking, recentMatches } = data;
+  const wins = ranking?.wins ?? 0;
+  const losses = ranking?.losses ?? 0;
+  const total = wins + losses;
+  const winRate = total > 0 ? Math.round((wins / total) * 100) : 0;
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Header com Avatar e Info Principal */}
-      <Card style={styles.headerCard}>
-        <View style={styles.headerContent}>
-          <Avatar name={atleta.name} size="large" />
-          <View style={styles.headerInfo}>
-            <Text style={styles.atletaNome}>{atleta.name}</Text>
-            <View style={styles.eloContainer}>
-              <Badge label={`ELO ${atleta.elo}`} variant="accent" />
-            </View>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* ── Hero: foto + nome + ações ───────────────────── */}
+      <View style={styles.heroCard}>
+        {/* Foto ou placeholder */}
+        {atleta.photoUri ? (
+          <Image source={{ uri: atleta.photoUri }} style={styles.photo} />
+        ) : (
+          <View style={styles.photoPlaceholder}>
+            <Text style={styles.photoInitials}>
+              {atleta.name
+                .split(" ")
+                .slice(0, 2)
+                .map((w) => w[0])
+                .join("")
+                .toUpperCase()}
+            </Text>
+          </View>
+        )}
+
+        <View style={styles.heroInfo}>
+          <Text style={styles.heroName}>{atleta.name}</Text>
+          {atleta.nickname ? (
+            <Text style={styles.heroNickname}>"{atleta.nickname}"</Text>
+          ) : null}
+
+          <View style={styles.heroBadges}>
+            <Badge
+              label={LEVEL_LABELS[atleta.level]}
+              variant="default"
+              size="small"
+            />
+            <Badge
+              label={STYLE_LABELS[atleta.playStyle]}
+              variant="muted"
+              size="small"
+            />
           </View>
         </View>
-      </Card>
 
-      {/* Estatísticas Principais */}
-      <Card style={styles.statsSection}>
-        <Text style={styles.sectionTitle}>Estatísticas</Text>
-        <StatsCard items={atleta.mainStats} />
-      </Card>
+        {/* Botão editar no canto */}
+        <TouchableOpacity
+          style={styles.editBtn}
+          onPress={() => navigation.navigate("AtletaForm", { atletaId })}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <MaterialCommunityIcons
+            name="pencil-outline"
+            size={18}
+            color={COLORS.primary}
+          />
+        </TouchableOpacity>
+      </View>
 
-      {/* Detalhes adicionais */}
-      <Card style={styles.detailsSection}>
-        <Text style={styles.sectionTitle}>Resumo</Text>
-        <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Total de Partidas</Text>
-          <Text style={styles.detailValue}>{atleta.wins + atleta.losses + atleta.draws}</Text>
+      {/* ── ELO e posição ──────────────────────────────── */}
+      <View style={styles.eloRow}>
+        <View style={styles.eloCard}>
+          <Text
+            style={[
+              styles.eloValue,
+              { color: getRankColor(ranking?.position) },
+            ]}
+          >
+            {atleta.elo}
+          </Text>
+          <Text style={styles.eloLabel}>ELO atual</Text>
         </View>
-        <Divider style={styles.divider} />
-        <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Taxa de Vitória</Text>
-          <Text style={styles.detailValue}>
-            {((atleta.wins / (atleta.wins + atleta.losses + atleta.draws)) * 100).toFixed(1)}%
+
+        <View style={styles.eloDivider} />
+
+        <View style={styles.eloCard}>
+          <Text
+            style={[
+              styles.eloValue,
+              { color: getRankColor(ranking?.position) },
+            ]}
+          >
+            {ranking?.position ? `#${ranking.position}` : "—"}
+          </Text>
+          <Text style={styles.eloLabel}>Ranking geral</Text>
+        </View>
+
+        {ranking?.eloChange !== undefined && ranking.eloChange !== 0 ? (
+          <>
+            <View style={styles.eloDivider} />
+            <View style={styles.eloCard}>
+              <Text
+                style={[
+                  styles.eloValue,
+                  {
+                    color:
+                      ranking.eloChange > 0 ? COLORS.success : COLORS.danger,
+                  },
+                ]}
+              >
+                {formatElo(ranking.eloChange)}
+              </Text>
+              <Text style={styles.eloLabel}>Última partida</Text>
+            </View>
+          </>
+        ) : null}
+      </View>
+
+      {/* ── Estatísticas ───────────────────────────────── */}
+      <View style={styles.statsGrid}>
+        <View style={styles.statCard}>
+          <Text style={[styles.statValue, { color: COLORS.success }]}>
+            {wins}
+          </Text>
+          <Text style={styles.statLabel}>Vitórias</Text>
+        </View>
+        <View style={styles.statCard}>
+          <Text style={[styles.statValue, { color: COLORS.danger }]}>
+            {losses}
+          </Text>
+          <Text style={styles.statLabel}>Derrotas</Text>
+        </View>
+        <View style={styles.statCard}>
+          <Text style={[styles.statValue, { color: COLORS.accent }]}>
+            {winRate}%
+          </Text>
+          <Text style={styles.statLabel}>Aproveitamento</Text>
+        </View>
+        <View style={styles.statCard}>
+          <Text style={[styles.statValue, { color: COLORS.primary }]}>
+            {ranking?.tournamentsWon ?? 0}
+          </Text>
+          <Text style={styles.statLabel}>Torneios ganhos</Text>
+        </View>
+      </View>
+
+      {/* ── Histórico recente de partidas ─────────────── */}
+      {recentMatches.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Partidas recentes</Text>
+
+          <View style={styles.matchList}>
+            {recentMatches.map((match, i) => {
+              const { result, label } = getMatchResult(match);
+              const opponent = getOpponentName(match);
+              const isWin = result === "V";
+
+              return (
+                <View key={match.id}>
+                  <View style={styles.matchRow}>
+                    {/* Resultado */}
+                    <View
+                      style={[
+                        styles.resultPill,
+                        {
+                          backgroundColor: isWin
+                            ? COLORS.success
+                            : COLORS.danger,
+                        },
+                      ]}
+                    >
+                      <Text style={styles.resultText}>{result}</Text>
+                    </View>
+
+                    {/* Adversário e data */}
+                    <View style={styles.matchInfo}>
+                      <Text style={styles.matchOpponent} numberOfLines={1}>
+                        vs {opponent}
+                      </Text>
+                      <Text style={styles.matchDate}>
+                        {formatDate(match.createdAt, true)}
+                      </Text>
+                    </View>
+
+                    {/* Placar */}
+                    <Text
+                      style={[
+                        styles.matchScore,
+                        { color: isWin ? COLORS.success : COLORS.danger },
+                      ]}
+                    >
+                      {label}
+                    </Text>
+                  </View>
+
+                  {i < recentMatches.length - 1 && (
+                    <Divider style={{ marginVertical: 0 }} />
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      )}
+
+      {recentMatches.length === 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Partidas recentes</Text>
+          <Text style={styles.emptyText}>
+            Nenhuma partida registrada ainda.
           </Text>
         </View>
-      </Card>
+      )}
 
-      {/* Últimas partidas */}
-      <Card style={styles.matchesSection}>
-        <Text style={styles.sectionTitle}>Últimas Partidas</Text>
-        {atleta.recentMatches.map((match, index) => (
-          <View key={index}>
-            <View style={styles.matchRow}>
-              <View style={styles.matchInfo}>
-                <Text style={styles.matchOpponent}>{match.opponent}</Text>
-              </View>
-              <View style={styles.matchResult}>
-                <Badge
-                  label={match.result}
-                  variant={match.result === 'W' ? 'success' : match.result === 'L' ? 'danger' : 'muted'}
-                />
-                <Text style={styles.matchScore}>{match.score}</Text>
-              </View>
-            </View>
-            {index < atleta.recentMatches.length - 1 && <Divider style={styles.divider} />}
-          </View>
-        ))}
-      </Card>
-
-      {/* Botões de ação */}
-      <View style={styles.actions}>
-        <Button
-          label="Editar"
-          variant="primary"
-          size="medium"
-          onPress={() => navigation.navigate('AtletaForm', { atletaId })}
-          style={styles.actionButton}
-        />
-        <Button
-          label="Ver Matches"
-          variant="secondary"
-          size="medium"
-          onPress={() => {}}
-          style={styles.actionButton}
-        />
+      {/* ── Ações destrutivas ──────────────────────────── */}
+      <View style={styles.dangerZone}>
+        <Button variant="danger" size="medium" onPress={handleDelete}>
+          Excluir atleta
+        </Button>
       </View>
     </ScrollView>
   );
 }
 
+const PHOTO_SIZE = 72;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
   },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+  scrollContent: {
+    padding: SPACING.lg,
+    paddingBottom: SPACING.xxl,
+    gap: SPACING.md,
   },
-  headerCard: {
-    marginBottom: SPACING.lg,
-    paddingVertical: SPACING.lg,
-    paddingHorizontal: SPACING.lg,
+
+  // ── Hero ──────────────────────────────────────────────
+  heroCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: SPACING.lg,
+    gap: SPACING.md,
   },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.lg,
+  photo: {
+    width: PHOTO_SIZE,
+    height: PHOTO_SIZE,
+    borderRadius: PHOTO_SIZE / 2,
   },
-  headerInfo: {
-    flex: 1,
+  photoPlaceholder: {
+    width: PHOTO_SIZE,
+    height: PHOTO_SIZE,
+    borderRadius: PHOTO_SIZE / 2,
+    backgroundColor: COLORS.accent,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  atletaNome: {
-    ...TYPOGRAPHY.h2,
+  photoInitials: {
+    fontSize: 24,
+    fontWeight: "700",
     color: COLORS.primary,
-    fontWeight: '700',
-    marginBottom: SPACING.sm,
   },
-  eloContainer: {
-    alignSelf: 'flex-start',
+  heroInfo: {
+    flex: 1,
+    gap: SPACING.xs,
   },
-  statsSection: {
-    marginBottom: SPACING.lg,
-    padding: SPACING.lg,
+  heroName: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: COLORS.text,
   },
-  detailsSection: {
-    marginBottom: SPACING.lg,
-    padding: SPACING.lg,
-  },
-  matchesSection: {
-    marginBottom: SPACING.lg,
-    padding: SPACING.lg,
-  },
-  sectionTitle: {
-    ...TYPOGRAPHY.h3,
-    color: COLORS.primary,
-    fontWeight: '600',
-    marginBottom: SPACING.md,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: SPACING.md,
-  },
-  detailLabel: {
-    ...TYPOGRAPHY.body,
+  heroNickname: {
+    fontSize: 13,
+    fontStyle: "italic",
     color: COLORS.textMuted,
   },
-  detailValue: {
-    ...TYPOGRAPHY.body,
-    fontWeight: '600',
-    color: COLORS.accent,
+  heroBadges: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.xs,
+    marginTop: SPACING.xs,
   },
-  divider: {
-    marginVertical: SPACING.sm,
+  editBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    justifyContent: "center",
+    alignItems: "center",
+    alignSelf: "flex-start",
+  },
+
+  // ── ELO row ───────────────────────────────────────────
+  eloRow: {
+    flexDirection: "row",
+    backgroundColor: COLORS.primary,
+    borderRadius: BORDER_RADIUS.lg,
+    paddingVertical: SPACING.lg,
+    paddingHorizontal: SPACING.md,
+  },
+  eloCard: {
+    flex: 1,
+    alignItems: "center",
+    gap: SPACING.xs,
+  },
+  eloValue: {
+    fontSize: 26,
+    fontWeight: "700",
+  },
+  eloLabel: {
+    fontSize: 11,
+    fontWeight: "500",
+    color: COLORS.accentMuted,
+    textAlign: "center",
+  },
+  eloDivider: {
+    width: 1,
+    backgroundColor: COLORS.primaryMid,
+    marginVertical: SPACING.xs,
+  },
+
+  // ── Stats grid ────────────────────────────────────────
+  statsGrid: {
+    flexDirection: "row",
+    gap: SPACING.sm,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingVertical: SPACING.md,
+    alignItems: "center",
+    gap: 2,
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: "700",
+  },
+  statLabel: {
+    fontSize: 10,
+    fontWeight: "500",
+    color: COLORS.textMuted,
+    textAlign: "center",
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+
+  // ── Seção genérica ────────────────────────────────────
+  section: {
+    gap: SPACING.md,
+  },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: COLORS.textMuted,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: COLORS.textMuted,
+    textAlign: "center",
+    paddingVertical: SPACING.xl,
+  },
+
+  // ── Partidas ──────────────────────────────────────────
+  matchList: {
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    overflow: "hidden",
   },
   matchRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    gap: SPACING.md,
+  },
+  resultPill: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  resultText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#FFF",
   },
   matchInfo: {
     flex: 1,
+    gap: 2,
   },
   matchOpponent: {
-    ...TYPOGRAPHY.body,
-    color: COLORS.text,
-    fontWeight: '500',
-  },
-  matchResult: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.md,
-  },
-  matchScore: {
-    ...TYPOGRAPHY.caption,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: "600",
     color: COLORS.text,
   },
-  subtitle: {
-    ...TYPOGRAPHY.body,
+  matchDate: {
+    fontSize: 11,
     color: COLORS.textMuted,
   },
-  actions: {
-    flexDirection: 'row',
-    gap: SPACING.md,
-    paddingHorizontal: 0,
-    marginBottom: SPACING.xxl,
+  matchScore: {
+    fontSize: 14,
+    fontWeight: "700",
   },
-  actionButton: {
-    flex: 1,
+
+  // ── Danger zone ───────────────────────────────────────
+  dangerZone: {
+    marginTop: SPACING.md,
   },
 });
-

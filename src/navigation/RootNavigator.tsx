@@ -13,20 +13,17 @@ export default function RootNavigator() {
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
-        animationEnabled: false,
       }}
     >
       {!isReady ? (
         <Stack.Screen
           name="Splash"
           component={SplashScreen}
-          options={{ animationEnabled: false }}
         />
       ) : (
         <Stack.Screen
           name="Main"
           component={BottomTabNavigator}
-          options={{ animationEnabled: false }}
         />
       )}
     </Stack.Navigator>

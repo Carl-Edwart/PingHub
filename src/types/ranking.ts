@@ -5,6 +5,7 @@ export interface RankingEntry {
   elo: number;
   wins: number;
   losses: number;
+  tournamentsWon?: number;
   position: number;
   eloChange: number;
   lastUpdated: string;

@@ -1,11 +1,17 @@
 import React from 'react';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createNativeStackNavigator, NativeStackScreenProps } from '@react-navigation/native-stack';
 import PartidaConfigScreen from '@/screens/partida/PartidaConfigScreen';
 import PartidaPlayScreen from '@/screens/partida/PartidaPlayScreen';
 import PartidaResultadoScreen from '@/screens/partida/PartidaResultadoScreen';
 import { COLORS } from '@/constants/theme';
 
-const Stack = createNativeStackNavigator();
+export type PartidaParamList = {
+  PartidaConfig: undefined;
+  PartidaPlay: undefined;
+  PartidaResultado: undefined;
+};
+
+const Stack = createNativeStackNavigator<PartidaParamList>();
 
 export default function PartidaStack() {
   return (

@@ -1,108 +1,264 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from '@/constants/theme';
-import { Button, Card, Avatar, Badge, EmptyState } from '@/components';
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import React, { useCallback, useState } from "react";
+import {
+  ActivityIndicator,
+  FlatList,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
-type Props = NativeStackScreenProps<any, 'AtletasList'>;
+import { Avatar, Badge, Button, EmptyState } from "@/components";
+import { BORDER_RADIUS, COLORS, SPACING } from "@/constants/theme";
+import { AthleteRepository } from "@/database/repositories/athleteRepository";
+import { RankingRepository } from "@/database/repositories/rankingRepository";
+import { useAtletasStore } from "@/store/useAtletasStore";
+import { Athlete } from "@/types/athlete";
 
-interface Atleta {
-  id: string;
-  name: string;
-  elo: number;
+type Props = NativeStackScreenProps<any, "AtletasList">;
+
+interface AtletaListItem extends Athlete {
+  rankPosition?: number;
   wins: number;
   losses: number;
-  wRate: number; // percentual
 }
 
-// Mock data
-const MOCK_ATLETAS: Atleta[] = [
-  { id: '1', name: 'João Silva', elo: 1850, wins: 24, losses: 8, wRate: 75 },
-  { id: '2', name: 'Maria Santos', elo: 1720, wins: 18, losses: 12, wRate: 60 },
-  { id: '3', name: 'Pedro Costa', elo: 1650, wins: 15, losses: 10, wRate: 60 },
-  { id: '4', name: 'Ana Torres', elo: 1580, wins: 12, losses: 15, wRate: 44 },
-];
+export default function AtletasListScreen({ navigation, route }: Props) {
+  const { atletas, setAtletas } = useAtletasStore();
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [rankData, setRankData] = useState<
+    Record<string, { position: number; wins: number; losses: number }>
+  >({});
 
-export default function AtletasListScreen({ navigation }: Props) {
-  const [atletas, setAtletas] = useState<Atleta[]>(MOCK_ATLETAS);
-  const [searchTerm, setSearchTerm] = useState('');
+  // Modo seleção: chamado por PartidaConfig ou TorneioCreate
+  const isSelectMode = route.params?.mode === "select";
+  const onSelect: ((a: { id: string; name: string }) => void) | undefined =
+    route.params?.onSelect;
 
   useFocusEffect(
     useCallback(() => {
-      // Aqui viriam dados do store/database
-      setAtletas(MOCK_ATLETAS);
-    }, [])
+      loadData();
+    }, []),
   );
 
-  const filteredAtletas = atletas.filter((a) => a.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const data = await AthleteRepository.getAll();
+      setAtletas(data);
 
-  const renderAtletaItem = ({ item }: { item: Atleta }) => (
+      const rankings = await RankingRepository.getRanking();
+      const map: Record<
+        string,
+        { position: number; wins: number; losses: number }
+      > = {};
+      rankings.forEach((r) => {
+        map[r.athleteId] = {
+          position: r.position,
+          wins: r.wins,
+          losses: r.losses,
+        };
+      });
+      setRankData(map);
+    } catch (err) {
+      console.error("Erro ao carregar atletas:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filtered: AtletaListItem[] = atletas
+    .filter((a) => {
+      const q = search.toLowerCase();
+      return (
+        a.name.toLowerCase().includes(q) ||
+        (a.nickname ?? "").toLowerCase().includes(q)
+      );
+    })
+    .map((a) => ({
+      ...a,
+      rankPosition: rankData[a.id]?.position,
+      wins: rankData[a.id]?.wins ?? 0,
+      losses: rankData[a.id]?.losses ?? 0,
+    }))
+    .sort((a, b) => (a.rankPosition ?? 9999) - (b.rankPosition ?? 9999));
+
+  const handlePress = (item: AtletaListItem) => {
+    if (isSelectMode && onSelect) {
+      onSelect({ id: item.id, name: item.nickname ?? item.name });
+      return;
+    }
+    navigation.navigate("AtletaPerfil", { atletaId: item.id });
+  };
+
+  const getLevelLabel = (level: string) => {
+    const labels: Record<string, string> = {
+      beginner: "Iniciante",
+      intermediate: "Intermediário",
+      advanced: "Avançado",
+    };
+    return labels[level] ?? level;
+  };
+
+  const getLevelVariant = (level: string): "muted" | "default" | "accent" => {
+    if (level === "advanced") return "accent";
+    if (level === "intermediate") return "default";
+    return "muted";
+  };
+
+  const getRankColor = (position?: number): string => {
+    if (position === 1) return "#F5C518";
+    if (position === 2) return "#C0C0C0";
+    if (position === 3) return "#CD7F32";
+    return COLORS.textMuted;
+  };
+
+  const renderItem = ({ item }: { item: AtletaListItem }) => (
     <TouchableOpacity
-      onPress={() => navigation.navigate('AtletaPerfil', { atletaId: item.id })}
-      activeOpacity={0.7}
+      style={styles.card}
+      onPress={() => handlePress(item)}
+      activeOpacity={0.75}
     >
-      <Card style={styles.atletaCard}>
-        <View style={styles.cardContent}>
-          {/* Avatar + Nome */}
-          <View style={styles.leftSection}>
-            <Avatar name={item.name} size="medium" />
-            <View style={styles.nameSection}>
-              <Text style={styles.atletaNome}>{item.name}</Text>
-              <View style={styles.statsRow}>
-                <Text style={styles.statText}>{item.wins}V</Text>
-                <Text style={styles.statSeparator}>•</Text>
-                <Text style={styles.statText}>{item.losses}D</Text>
-              </View>
-            </View>
-          </View>
+      {/* Posição */}
+      <View style={styles.rankBadge}>
+        <Text
+          style={[
+            styles.rankNumber,
+            { color: getRankColor(item.rankPosition) },
+          ]}
+        >
+          {item.rankPosition ? `#${item.rankPosition}` : "—"}
+        </Text>
+      </View>
 
-          {/* ELO Badge */}
-          <View style={styles.rightSection}>
-            <Badge
-              label={`${item.elo}`}
-              variant={item.elo >= 1700 ? 'success' : item.elo >= 1500 ? 'default' : 'muted'}
-            />
-            <View style={styles.taxaContainer}>
-              <Text style={styles.taxaLabel}>Taxa</Text>
-              <Text style={styles.taxa}>{item.wRate}%</Text>
-            </View>
-          </View>
+      {/* Avatar */}
+      <Avatar name={item.name} source={item.photoUri} size="medium" />
+
+      {/* Info */}
+      <View style={styles.info}>
+        <Text style={styles.name} numberOfLines={1}>
+          {item.name}
+        </Text>
+        {item.nickname ? (
+          <Text style={styles.nickname} numberOfLines={1}>
+            "{item.nickname}"
+          </Text>
+        ) : null}
+        <View style={styles.metaRow}>
+          <Badge
+            label={getLevelLabel(item.level)}
+            variant={getLevelVariant(item.level)}
+            size="small"
+          />
+          <Text style={styles.record}>
+            {item.wins}V · {item.losses}D
+          </Text>
         </View>
-      </Card>
+      </View>
+
+      {/* ELO */}
+      <View style={styles.eloBlock}>
+        <Text style={styles.eloValue}>{item.elo}</Text>
+        <Text style={styles.eloLabel}>ELO</Text>
+      </View>
+
+      {isSelectMode && (
+        <MaterialCommunityIcons
+          name="chevron-right"
+          size={20}
+          color={COLORS.accent}
+          style={{ marginLeft: SPACING.xs }}
+        />
+      )}
     </TouchableOpacity>
   );
 
   return (
     <View style={styles.container}>
-      {/* Header com botão novo */}
-      <View style={styles.header}>
-        <Button
-          label="+ Novo Atleta"
-          variant="primary"
-          size="small"
-          onPress={() => navigation.navigate('AtletaForm')}
-          style={styles.newButton}
+      {/* Campo de busca */}
+      <View style={styles.searchBar}>
+        <MaterialCommunityIcons
+          name="magnify"
+          size={18}
+          color={COLORS.textMuted}
         />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Buscar atleta..."
+          placeholderTextColor={COLORS.textMuted}
+          value={search}
+          onChangeText={setSearch}
+          returnKeyType="search"
+          clearButtonMode="while-editing"
+        />
+        {search.length > 0 && (
+          <TouchableOpacity
+            onPress={() => setSearch("")}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <MaterialCommunityIcons
+              name="close-circle"
+              size={16}
+              color={COLORS.textMuted}
+            />
+          </TouchableOpacity>
+        )}
       </View>
 
-      {/* Lista */}
-      {filteredAtletas.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <EmptyState
-            title="Nenhum atleta cadastrado"
-            description="Crie um novo atleta para começar"
-            actionLabel="Novo Atleta"
-            onAction={() => navigation.navigate('AtletaForm')}
-          />
+      {/* Header com contagem e botão novo (fora do modo seleção) */}
+      {!isSelectMode && (
+        <View style={styles.listHeader}>
+          <Text style={styles.countText}>
+            {filtered.length} {filtered.length === 1 ? "atleta" : "atletas"}
+          </Text>
+          <Button
+            variant="primary"
+            size="small"
+            onPress={() => navigation.navigate("AtletaForm")}
+          >
+            + Novo atleta
+          </Button>
         </View>
+      )}
+
+      {loading ? (
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={COLORS.accent} />
+        </View>
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          icon="🏓"
+          title={search ? "Nenhum resultado" : "Sem atletas cadastrados"}
+          description={
+            search
+              ? `Nenhum atleta encontrado para "${search}"`
+              : "Cadastre o primeiro atleta para iniciar o ranking"
+          }
+          actionButton={
+            !isSelectMode && !search ? (
+              <Button
+                variant="primary"
+                size="medium"
+                onPress={() => navigation.navigate("AtletaForm")}
+              >
+                Cadastrar primeiro atleta
+              </Button>
+            ) : undefined
+          }
+        />
       ) : (
         <FlatList
-          data={filteredAtletas}
-          renderItem={renderAtletaItem}
+          data={filtered}
           keyExtractor={(item) => item.id}
+          renderItem={renderItem}
           contentContainerStyle={styles.listContent}
-          scrollEnabled={true}
+          showsVerticalScrollIndicator={false}
+          ItemSeparatorComponent={() => <View style={{ height: SPACING.sm }} />}
         />
       )}
     </View>
@@ -114,77 +270,117 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  header: {
+
+  // ── Busca ─────────────────────────────────────────────
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+    marginHorizontal: SPACING.lg,
+    marginTop: SPACING.md,
+    marginBottom: SPACING.sm,
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: SPACING.md,
+    height: 44,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: COLORS.text,
+    paddingVertical: 0,
+  },
+
+  // ── Header da lista ───────────────────────────────────
+  listHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    paddingBottom: SPACING.sm,
   },
-  newButton: {
-    alignSelf: 'flex-end',
+  countText: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: COLORS.textMuted,
   },
+
+  // ── FlatList ──────────────────────────────────────────
   listContent: {
-    padding: SPACING.lg,
+    paddingHorizontal: SPACING.lg,
+    paddingBottom: SPACING.xxl,
+  },
+
+  // ── Card ──────────────────────────────────────────────
+  card: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.md,
     gap: SPACING.md,
   },
-  atletaCard: {
-    paddingVertical: SPACING.md,
-    paddingHorizontal: SPACING.lg,
+  rankBadge: {
+    width: 28,
+    alignItems: "center",
   },
-  cardContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  rankNumber: {
+    fontSize: 12,
+    fontWeight: "700",
   },
-  leftSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  info: {
     flex: 1,
-    marginRight: SPACING.md,
+    gap: 2,
   },
-  nameSection: {
-    marginLeft: SPACING.md,
-    flex: 1,
-  },
-  atletaNome: {
-    ...TYPOGRAPHY.body,
-    fontWeight: '600',
+  name: {
+    fontSize: 15,
+    fontWeight: "600",
     color: COLORS.text,
-    marginBottom: SPACING.xs,
   },
-  statsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-  },
-  statText: {
-    ...TYPOGRAPHY.caption,
+  nickname: {
+    fontSize: 12,
     color: COLORS.textMuted,
-    fontWeight: '500',
+    fontStyle: "italic",
   },
-  statSeparator: {
-    color: COLORS.border,
-  },
-  rightSection: {
-    alignItems: 'flex-end',
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: SPACING.sm,
+    marginTop: 2,
   },
-  taxaContainer: {
-    alignItems: 'center',
-  },
-  taxaLabel: {
-    ...TYPOGRAPHY.caption,
+  record: {
+    fontSize: 11,
+    fontWeight: "500",
     color: COLORS.textMuted,
+  },
+
+  // ── ELO ──────────────────────────────────────────────
+  eloBlock: {
+    alignItems: "center",
+    minWidth: 48,
+  },
+  eloValue: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: COLORS.primary,
+  },
+  eloLabel: {
     fontSize: 10,
+    fontWeight: "500",
+    color: COLORS.textMuted,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
   },
-  taxa: {
-    ...TYPOGRAPHY.body,
-    fontWeight: '700',
-    color: COLORS.accent,
-  },
-  emptyContainer: {
+
+  // ── Estados ───────────────────────────────────────────
+  center: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
 });
