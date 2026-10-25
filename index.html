@@ -1,0 +1,1393 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#090c13">
+  <title>PingHub — Tênis de Mesa</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+/* ===== PALETA ===== grafite profundo + azul (ações) + verde (positivo/confirmar) + vermelho (negativo) + laranja "bolinha" */
+:root, [data-bs-theme=dark] {
+  --bg:#090c13; --bg2:#0d121c; --surface:#121826; --surface2:#182033; --line:#222b3f; --line2:#2f3a56;
+  --text:#ffffff; --muted:#aab5cb;
+  --accent:#3b82f6; --accent2:#7cb4ff; --blue:#3b82f6; --ok:#22c55e; --bad:#f45b69; --warn:#f5b73b;
+  --p1:#2563eb; --p2:#ea580c;
+  --font-body:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --font-display:'Space Grotesk','Inter',system-ui,sans-serif;
+  --ease:cubic-bezier(.22,1,.36,1);
+  --bs-body-bg:var(--bg); --bs-body-color:var(--text); --bs-body-font-family:var(--font-body);
+  --bs-border-color:var(--line); --bs-secondary-color:var(--muted); --bs-secondary-rgb:170,181,203;
+  --bs-info-rgb:96,165,250; --bs-success-rgb:34,197,94; --bs-danger-rgb:244,91,105; --bs-warning-rgb:245,183,59;
+  --bs-link-color-rgb:124,180,255; --bs-link-hover-color-rgb:168,203,255;
+}
+body { min-height:100vh; background:var(--bg); -webkit-font-smoothing:antialiased; font-variant-numeric:tabular-nums; }
+h1,h2,h3,h4,h5,.ph-title { font-family:var(--font-display); font-weight:700; letter-spacing:-.015em; }
+h5 { font-size:1.05rem; }
+.eyebrow { display:inline-block; font-size:.7rem; letter-spacing:.18em; text-transform:uppercase; color:var(--accent2); font-weight:600; margin-bottom:.7rem; }
+
+/* ===== FUNDO ANIMADO ===== */
+.bg-fx { position:fixed; inset:0; z-index:-1; overflow:hidden; pointer-events:none; }
+.bg-fx::before, .bg-fx::after { content:""; position:absolute; width:60vmax; height:60vmax; border-radius:50%; filter:blur(90px); will-change:transform; }
+.bg-fx::before { background:radial-gradient(circle,#1d4ed8,transparent 65%); top:-28vmax; right:-18vmax; opacity:.16; animation:drift1 28s ease-in-out infinite alternate; }
+.bg-fx::after  { background:radial-gradient(circle,#16a34a,transparent 65%); bottom:-34vmax; left:-22vmax; opacity:.09; animation:drift2 34s ease-in-out infinite alternate; }
+body::before { content:""; position:fixed; inset:0; z-index:-1; pointer-events:none; opacity:.14;
+  background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+  background-size:56px 56px; -webkit-mask-image:radial-gradient(ellipse at 50% 0,#000,transparent 72%); mask-image:radial-gradient(ellipse at 50% 0,#000,transparent 72%); }
+
+/* ===== NAVEGAÇÃO ===== */
+.ph-nav { background:rgba(9,12,19,.74); backdrop-filter:blur(14px) saturate(140%); border-bottom:1px solid var(--line); animation:navDrop .8s var(--ease) both; }
+.ph-nav::after { content:""; position:absolute; left:0; right:0; bottom:-1px; height:1px; background:linear-gradient(90deg,transparent,var(--accent),var(--ok),transparent); background-size:200% 100%; animation:slide 8s linear infinite; opacity:.35; }
+.ph-logo { font-family:var(--font-display); font-weight:700; letter-spacing:.12em; color:var(--text); }
+.ph-logo i { color:#fb923c; font-size:.7em; display:inline-block; animation:logoPulse 5s ease-in-out infinite; }
+.ph-logo span { color:var(--accent); }
+.ph-nav .nav-link { position:relative; color:var(--muted); font-size:.86rem; transition:color .3s; }
+.ph-nav .nav-link::after { content:""; position:absolute; left:.75rem; right:.75rem; bottom:.2rem; height:2px; border-radius:2px; background:linear-gradient(90deg,var(--accent),var(--accent2)); transform:scaleX(0); transition:transform .45s var(--ease); }
+.ph-nav .nav-link:hover { color:var(--text); }
+.ph-nav .nav-link:hover::after, .ph-nav .nav-link.active::after { transform:scaleX(1); }
+.ph-nav .nav-link.active { color:var(--text) !important; }
+.navbar-toggler { border-color:var(--line2); }
+
+/* ===== CARDS (com brilho que segue o cursor) ===== */
+.card { position:relative; overflow:hidden; background:linear-gradient(180deg,var(--surface),var(--bg2)); border:1px solid var(--line); border-radius:16px;
+  transition:border-color .4s, box-shadow .4s, transform .45s var(--ease); }
+.card::before { content:""; position:absolute; inset:0; pointer-events:none; opacity:0; transition:opacity .4s;
+  background:radial-gradient(380px circle at var(--mx,50%) var(--my,0%),rgba(59,130,246,.06),transparent 60%); }
+.card:hover::before { opacity:1; }
+.card:hover { border-color:var(--line2); }
+.card.clickable, .clickable { cursor:pointer; }
+.card.clickable:hover { transform:translateY(-3px); border-color:rgba(59,130,246,.45); box-shadow:0 12px 24px -16px rgba(0,0,0,.7); }
+.card.clickable:active { transform:translateY(-1px) scale(.997); }
+.ph-title { display:flex; align-items:center; gap:.7rem; }
+.ph-title::before { content:""; width:5px; height:1.1em; border-radius:3px; background:linear-gradient(var(--accent),var(--accent2)); animation:grow .7s var(--ease) both; transform-origin:top; }
+
+/* ===== BOTÕES ===== */
+.btn { position:relative; overflow:hidden; display:inline-flex; align-items:center; justify-content:center; gap:.45rem; border-radius:10px; font-weight:600;
+  transition:transform .3s, box-shadow .4s, background-color .3s, border-color .3s, color .3s; }
+.btn:active { transform:scale(.985); }
+.btn-ph { border:0; color:#fff; background:linear-gradient(135deg,#2563eb,#3b82f6); box-shadow:0 4px 12px -6px rgba(59,130,246,.7); }
+.btn-ph::before { content:""; position:absolute; inset:0; background:linear-gradient(110deg,transparent 30%,rgba(255,255,255,.4) 50%,transparent 70%); transform:translateX(-120%); transition:transform .7s var(--ease); }
+.btn-ph:hover { color:#fff; transform:translateY(-1px); box-shadow:0 6px 14px -8px rgba(59,130,246,.55); }
+.btn-ph:hover::before { transform:translateX(120%); }
+.btn-outline-light { border-color:var(--line2); color:var(--text); }
+.btn-outline-light:hover { background:var(--surface2); border-color:var(--muted); color:var(--text); }
+.btn-outline-info { --bs-btn-color:var(--accent2); --bs-btn-border-color:rgba(59,130,246,.55); --bs-btn-hover-bg:var(--accent); --bs-btn-hover-border-color:var(--accent); --bs-btn-hover-color:#fff; }
+.btn-go { background:linear-gradient(135deg,#15803d,#16a34a); box-shadow:0 4px 12px -6px rgba(34,197,94,.7); }
+.btn-go:hover { box-shadow:0 6px 16px -8px rgba(34,197,94,.8); }
+.btn:focus-visible, .seg-btn:focus-visible { outline:2px solid var(--accent2); outline-offset:2px; }
+.btn-light { background:#fff; color:#10131c; border:0; }
+.ph-ripple { position:absolute; border-radius:50%; pointer-events:none; background:rgba(255,255,255,.25); transform:scale(0); animation:ripple .8s ease-out forwards; }
+.bi { display:inline-block; transition:transform .45s var(--ease); }
+.btn:hover .bi-plus-lg, .btn:hover .bi-x, .btn:hover .bi-x-lg { transform:rotate(90deg); }
+.btn:hover .bi-play-fill { transform:translateX(2px) scale(1.12); }
+.btn:hover .bi-arrow-counterclockwise { transform:rotate(-90deg); }
+
+/* ===== FORMULÁRIOS, TABELAS, BADGES ===== */
+.form-control, .form-select { background-color:var(--bg2); border-color:var(--line); border-radius:10px; transition:border-color .3s, box-shadow .3s; }
+.form-control:focus, .form-select:focus { background-color:var(--bg2); border-color:var(--accent); box-shadow:0 0 0 .2rem rgba(59,130,246,.15); }
+.form-check-input:checked { background-color:var(--accent); border-color:var(--accent); }
+.table { --bs-table-bg:transparent; --bs-table-border-color:var(--line); --bs-table-hover-bg:rgba(59,130,246,.05); }
+.table thead th { font-size:.7rem; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); font-weight:600; border-bottom-color:var(--line2); }
+.table tbody tr { transition:background-color .3s; animation:fadeIn .5s ease both; }
+.table tbody tr:hover { background:rgba(59,130,246,.05); }
+.table tbody tr:nth-child(2){animation-delay:.04s} .table tbody tr:nth-child(3){animation-delay:.08s} .table tbody tr:nth-child(4){animation-delay:.12s}
+.table tbody tr:nth-child(5){animation-delay:.16s} .table tbody tr:nth-child(n+6){animation-delay:.2s}
+tr.clickable { cursor:pointer; }
+.badge { font-weight:600; letter-spacing:.02em; border-radius:999px; padding:.42em .8em; }
+.badge.text-bg-info    { background:rgba(59,130,246,.14) !important; color:var(--accent2) !important; border:1px solid rgba(59,130,246,.32); }
+.badge.text-bg-secondary { background:var(--surface2) !important; color:var(--muted) !important; border:1px solid var(--line2); }
+.badge.text-bg-warning { background:rgba(245,183,59,.13) !important; color:var(--warn) !important; border:1px solid rgba(245,183,59,.3); }
+.badge.text-bg-success { background:rgba(34,197,94,.13) !important; color:var(--ok) !important; border:1px solid rgba(34,197,94,.3); }
+.alert-success { background:rgba(34,197,94,.1); border-color:rgba(34,197,94,.3); color:var(--ok); }
+.alert-danger  { background:rgba(244,91,105,.1);  border-color:rgba(244,91,105,.3);  color:var(--bad); }
+.toast { border-radius:12px; backdrop-filter:blur(8px); }
+.accordion { --bs-accordion-bg:var(--surface); --bs-accordion-border-color:var(--line); --bs-accordion-btn-bg:var(--surface); --bs-accordion-active-bg:var(--surface2);
+  --bs-accordion-active-color:var(--text); --bs-accordion-btn-color:var(--text); --bs-accordion-btn-focus-box-shadow:none; }
+.nav-pills .nav-link { color:var(--muted); border-radius:999px; }
+.nav-pills .nav-link.active { background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#ffffff; font-weight:600; }
+.up { color:var(--ok); } .down { color:var(--bad); }
+.text-info { color:var(--accent2) !important; }
+
+/* ===== HERO ===== */
+.hero { position:relative; overflow:hidden; border-radius:22px; border:1px solid var(--line2);
+  background:linear-gradient(120deg,#0b1a3a,#0f2c5c 45%,#0b4a4a 78%,#0d5c45); background-size:300% 300%; animation:gradientShift 22s ease infinite;
+  box-shadow:0 24px 60px -24px rgba(0,0,0,.7); min-height:260px; }
+.hero::before { content:""; position:absolute; inset:0; opacity:.18; pointer-events:none;
+  background-image:linear-gradient(rgba(255,255,255,.5) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.5) 1px,transparent 1px); background-size:40px 40px;
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 90%); mask-image:linear-gradient(90deg,transparent,#000 90%); }
+.hero > * { position:relative; z-index:1; }
+.hero h1 { font-weight:700; max-width:16ch; letter-spacing:-.025em; }
+.hero .lead { color:rgba(255,255,255,.75); max-width:46ch; }
+.ball { position:absolute !important; right:10%; top:12%; z-index:0 !important; width:48px; height:48px; border-radius:50%;
+  background:radial-gradient(circle at 32% 28%,#fff3e0,#ffb15c 38%,#f97316 78%); box-shadow:0 6px 16px rgba(0,0,0,.35); animation:bounce 2.8s infinite; }
+.ball-shadow { position:absolute !important; right:calc(10% - 4px); bottom:12%; z-index:0 !important; width:56px; height:10px; border-radius:50%; background:rgba(0,0,0,.5); filter:blur(5px); animation:shadow 2.8s infinite; }
+@media (max-width:576px){ .ball,.ball-shadow{ opacity:.45; right:6%; } }
+
+/* ===== ATLETAS / RANKING ===== */
+.avatar { width:44px; height:44px; border-radius:50%; object-fit:cover; flex:none; display:inline-flex; align-items:center; justify-content:center; font-weight:700;
+  background:linear-gradient(135deg,#25324f,#18213a); color:var(--accent2); border:1px solid var(--line2); transition:transform .5s var(--ease), box-shadow .5s; }
+.avatar-lg { width:110px; height:110px; font-size:2.5rem; }
+a:hover .avatar, .clickable:hover .avatar { transform:scale(1.06); box-shadow:0 0 0 3px rgba(59,130,246,.12); }
+.pos { width:2.2rem; font-family:var(--font-display); font-weight:700; color:var(--muted); }
+.pos-1 { color:#ffd166; } .pos-2 { color:#cfd8e6; } .pos-3 { color:#e29b62; }
+.elo-big { font-family:var(--font-display); background:linear-gradient(135deg,#7cb4ff,#34d399); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.ph-medal { display:inline-flex; align-items:center; gap:.25rem; white-space:nowrap; line-height:1; transition:transform .35s var(--ease); }
+.ph-medal:hover { transform:translateY(-2px) scale(1.08); }
+
+/* ===== GRÁFICO DE ELO ===== */
+.ph-chart-wrap { overflow-x:auto; }
+.ph-chart { display:block; width:100%; min-width:440px; max-width:820px; height:auto; margin:0 auto; }
+.ph-chart-grid { stroke:rgba(255,255,255,.07); }
+.ph-chart-axis { fill:var(--muted); font-size:11px; font-weight:600; }
+.ph-seg { fill:none; stroke-width:3; stroke-linecap:round; stroke-dasharray:1 1; stroke-dashoffset:1; animation:draw .5s var(--ease) forwards; }
+.ph-legend { display:flex; flex-wrap:wrap; gap:.4rem 1.1rem; align-items:center; font-size:.8rem; font-weight:600; margin-top:.6rem; }
+.ph-chart path { opacity:0; animation:fadeIn 1s 1s forwards; }
+.ph-chart-dot { opacity:0; cursor:pointer; animation:fadeIn .5s 1.2s forwards; transition:r .2s; }
+.ph-point { cursor:pointer; outline:none; }
+.ph-point.hover .ph-chart-dot, .ph-point:focus-visible .ph-chart-dot { r:5; }
+.ph-point:focus-visible .ph-chart-dot { stroke:#fff; stroke-width:2; }
+.ph-chart-value { fill:#e7edf9; font-size:10px; font-weight:700; paint-order:stroke; stroke:#090c13; stroke-width:3px;
+  stroke-linejoin:round; pointer-events:none; opacity:0; transition:opacity .15s ease; }
+.ph-point.hover .ph-chart-value, .ph-point:focus .ph-chart-value, .ph-point.active .ph-chart-value { opacity:1; }
+/* enquanto um ponto está sob o mouse, o valor fixado por clique não aparece junto */
+.ph-chart.has-hover .ph-point.active:not(.hover) .ph-chart-value,
+.ph-chart.has-hover .ph-point:focus:not(.hover) .ph-chart-value { opacity:0; }
+
+/* ===== CHAVES ===== */
+.bracket { display:flex; gap:1.5rem; overflow-x:auto; padding-bottom:1rem; }
+.bracket-col { min-width:230px; display:flex; flex-direction:column; justify-content:space-around; gap:1rem; }
+.bm { background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:.55rem .75rem; transition:transform .45s var(--ease), border-color .4s, box-shadow .4s; }
+.bm:hover { transform:translateY(-3px); border-color:rgba(59,130,246,.45); box-shadow:0 10px 20px -14px rgba(0,0,0,.7); }
+.bm .row-p { display:flex; justify-content:space-between; gap:.5rem; padding:.18rem 0; color:var(--muted); }
+.bm .win { font-weight:700; color:var(--ok); }
+
+/* ===== PLACAR ===== */
+.score-area { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+.side { --sc:var(--p1); position:relative; overflow:hidden; text-align:center; padding:1.1rem; border-radius:22px; border:1px solid var(--line);
+  background:linear-gradient(180deg,var(--surface),var(--bg2)); transition:border-color .5s, box-shadow .5s; }
+.side:nth-child(2) { --sc:var(--p2); }
+.side::before { content:""; position:absolute; left:0; right:0; top:0; height:3px; background:var(--sc); }
+.side .pname { font-family:var(--font-display); font-size:1.3rem; font-weight:700; }
+.serve-tag { display:inline-flex; align-items:center; gap:.25rem; margin-left:.45rem; padding:.08rem .5rem; border:1px solid var(--sc);
+  border-radius:999px; color:var(--sc); font-size:.62rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+  vertical-align:.25rem; animation:servePulse 1.6s ease-in-out infinite; }
+.big-score { font-family:var(--font-display); font-size:clamp(5rem,22vw,11rem); font-weight:700; line-height:1; transition:color .4s; }
+.big-score.score-pop { animation:scoreIn .55s var(--ease); }
+.pt-btn { width:100%; padding:1.4rem 0; font-size:2rem; font-weight:700; background:var(--sc); color:#fff; }
+.pt-btn:hover { background:var(--sc); filter:brightness(1.12); color:#fff; }
+.pt-btn::before { display:none; }
+.set-dot { display:inline-block; width:14px; height:14px; margin:0 3px; border-radius:50%; background:var(--line2); transition:background .3s, transform .3s; }
+.set-dot.on { background:var(--sc); }
+.set-dot.new { animation:dotPop .5s var(--ease); }
+@media (orientation:landscape) and (max-height:500px){ .big-score{font-size:28vh} .pt-btn{padding:.8rem 0} }
+
+/* ===== MESA ===== */
+.status-free, .status-busy { display:inline-flex; align-items:center; gap:.6rem; font-family:var(--font-display); font-weight:700; font-size:1.5rem; }
+.status-free { color:var(--ok); --g:34,197,94; } .status-busy { color:var(--bad); --g:244,91,105; }
+.dot { width:.7rem; height:.7rem; border-radius:50%; background:currentColor; animation:live 2s infinite; }
+
+/* ===== CARREGAMENTO, ENTRADA DE PÁGINA ===== */
+.sk { height:96px; border-radius:16px; background:linear-gradient(90deg,var(--surface) 25%,var(--surface2) 50%,var(--surface) 75%); background-size:200% 100%; animation:shimmer 1.4s infinite; }
+#app.page-in > * { animation:pageIn .8s var(--ease) both; }
+#app.page-in > *:nth-child(2){animation-delay:.08s} #app.page-in > *:nth-child(3){animation-delay:.16s}
+#app.page-in > *:nth-child(4){animation-delay:.24s} #app.page-in > *:nth-child(n+5){animation-delay:.3s}
+/* a camada do time-out não pode herdar transform: isso prenderia o overlay fixo ao conteúdo */
+#app.page-in > #toLayer { animation:none; }
+#list > * { animation:fadeIn .5s ease both; }
+
+/* ===== KEYFRAMES ===== */
+@keyframes pageIn { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:none} }
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+@keyframes navDrop { from{opacity:0;transform:translateY(-10px)} to{opacity:1;transform:none} }
+@keyframes grow { from{transform:scaleY(0)} to{transform:scaleY(1)} }
+@keyframes slide { to{background-position:200% 0} }
+@keyframes logoPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.18)} }
+@keyframes drift1 { to{transform:translate(-14vmax,18vmax) scale(1.15)} }
+@keyframes drift2 { to{transform:translate(20vmax,-14vmax) scale(1.1)} }
+@keyframes gradientShift { 0%,100%{background-position:0% 50%} 50%{background-position:100% 50%} }
+@keyframes bounce { 0%,100%{transform:translateY(0);animation-timing-function:cubic-bezier(.55,0,1,.45)} 50%{transform:translateY(120px) scale(1.1,.9);animation-timing-function:cubic-bezier(0,.55,.45,1)} }
+@keyframes shadow { 0%,100%{transform:scaleX(.6);opacity:.25} 50%{transform:scaleX(1.1);opacity:.6} }
+@keyframes scoreIn { from{opacity:.3;transform:translateY(12px) scale(.94)} to{opacity:1;transform:none} }
+@keyframes servePulse { 0%,100%{opacity:.6;transform:scale(.95)} 50%{opacity:1;transform:scale(1.15)} }
+@keyframes glow { 0%,100%{box-shadow:0 0 0 1px var(--sc)} 50%{box-shadow:0 0 0 4px color-mix(in srgb,var(--sc) 22%,transparent)} }
+@keyframes dotPop { 0%{transform:scale(.5)} 60%{transform:scale(1.35)} 100%{transform:scale(1)} }
+@keyframes ripple { to{transform:scale(1);opacity:0} }
+@keyframes draw { to{stroke-dashoffset:0} }
+@keyframes shimmer { to{background-position:-200% 0} }
+@keyframes live { 0%{box-shadow:0 0 0 0 rgba(var(--g),.55)} 70%{box-shadow:0 0 0 12px rgba(var(--g),0)} 100%{box-shadow:0 0 0 0 rgba(var(--g),0)} }
+
+/* acessibilidade: respeita "reduzir movimento" */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{ animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; }
+  .ph-seg{ stroke-dashoffset:0; } .ph-chart path,.ph-chart-dot{ opacity:1; }
+}
+
+/* ===== v2: movimento em botões e ícones ===== */
+.btn:hover { transform:translateY(-2px); }
+.btn:active { transform:translateY(0) scale(.95); transition-duration:.08s; }
+.btn-ph { translate:var(--tx,0) var(--ty,0); transition:translate .25s var(--ease), transform .3s, box-shadow .4s; }
+.btn .bi, .ph-nav .nav-link .bi { transition:transform .55s cubic-bezier(.34,1.56,.64,1); }
+.btn:hover .bi-plus-lg { transform:rotate(180deg) scale(1.2); }
+.btn:hover .bi-arrow-counterclockwise { transform:rotate(-360deg); }
+.btn:hover .bi-x, .btn:hover .bi-x-lg { transform:rotate(90deg) scale(1.2); }
+.btn:hover .bi-trash { animation:shake .5s; }
+.btn:hover .bi-pencil { animation:write .7s ease-in-out; }
+.btn:hover .bi-download { animation:down .8s ease-in-out infinite; }
+.btn:hover .bi-play-fill { animation:nudge .7s ease-in-out infinite; }
+.btn:hover .bi-play-circle, .btn:hover .bi-stopwatch, .btn:hover .bi-trophy { animation:wobble .8s ease-in-out; }
+.btn-lg .bi-play-fill { animation:nudge 1.8s ease-in-out infinite; }
+.ph-nav .nav-link .bi { margin-right:.35rem; opacity:.7; }
+.ph-nav .nav-link:hover .bi, .ph-nav .nav-link.active .bi { opacity:1; }
+.ph-nav .nav-link:hover .bi-lightning-charge { animation:flicker .6s; }
+.ph-nav .nav-link:hover .bi-trophy, .ph-nav .nav-link:hover .bi-journal-text { animation:wobble .7s; }
+.ph-nav .nav-link:hover .bi-bar-chart-line { transform-origin:bottom; animation:rise .6s; }
+.ph-nav .nav-link:hover .bi-people { animation:nudge .5s 2; }
+.ph-nav .nav-link:hover .bi-clock-history { transform:rotate(-360deg); transition-duration:.9s; }
+.ph-nav .nav-link:hover .bi-mortarboard { animation:hop .6s; }
+.ph-nav .nav-link:hover .bi-hourglass-split { transform:rotate(180deg); transition-duration:.7s; }
+.stat-ico { font-size:1.7rem; color:var(--accent2); animation:floaty 4s ease-in-out infinite; }
+.col-6:nth-child(2) .stat-ico { animation-delay:-1s; } .col-6:nth-child(3) .stat-ico { animation-delay:-2s; } .col-6:nth-child(4) .stat-ico { animation-delay:-3s; }
+.point-tag { display:inline-block; margin-top:.25rem; padding:.15rem .65rem; border:1px solid var(--sc); border-radius:999px; color:var(--sc); font-size:.7rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase; animation:tagPulse 1.4s ease-in-out infinite; }
+.notice { display:flex; align-items:center; gap:.6rem; justify-content:center; padding:.75rem 1rem; border-radius:12px; border:1px solid var(--line2); background:var(--surface2); animation:noticeIn .45s var(--ease); }
+.notice .bi { color:var(--accent2); }
+.gear { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:.75rem; }
+.gear small { display:block; color:var(--muted); font-size:.7rem; letter-spacing:.1em; text-transform:uppercase; }
+.score-tile { font-family:var(--font-display); }
+@keyframes shake { 20%{transform:rotate(-14deg)} 40%{transform:rotate(12deg)} 60%{transform:rotate(-8deg)} 80%{transform:rotate(5deg)} }
+@keyframes write { 30%{transform:translate(3px,-3px) rotate(10deg)} 60%{transform:translate(-2px,2px) rotate(-8deg)} }
+@keyframes down { 50%{transform:translateY(4px)} }
+@keyframes nudge { 50%{transform:translateX(4px)} }
+@keyframes wobble { 25%{transform:rotate(-14deg)} 75%{transform:rotate(14deg)} }
+@keyframes flicker { 25%{transform:scale(1.35)} 50%{transform:scale(.9)} 75%{transform:scale(1.2)} }
+@keyframes rise { 50%{transform:scaleY(1.4)} }
+@keyframes hop { 40%{transform:translateY(-5px)} 70%{transform:translateY(1px)} }
+@keyframes floaty { 50%{transform:translateY(-4px)} }
+@keyframes tagPulse { 50%{transform:scale(1.06)} }
+@keyframes noticeIn { from{opacity:0;transform:translateY(8px) scale(.97)} }
+
+/* ===== v3: seletor segmentado, time-out centralizado, dicas ===== */
+.seg { display:flex; flex-wrap:wrap; gap:.4rem; }
+.seg-btn { flex:1 1 0; min-width:3rem; padding:.55rem .8rem; border-radius:10px; border:1px solid var(--line2); background:var(--bg2); color:var(--text); font-weight:600; transition:background-color .25s, border-color .25s, transform .2s; }
+.seg-btn:hover { border-color:var(--accent); }
+.seg-btn:active { transform:scale(.96); }
+.seg-btn.active { background:linear-gradient(135deg,#2563eb,#3b82f6); border-color:#3b82f6; color:#fff; }
+.pdot { display:inline-block; width:.7rem; height:.7rem; border-radius:50%; margin-right:.4rem; vertical-align:baseline; }
+.hint { color:var(--muted); font-size:.85rem; }
+kbd { background:var(--surface2); border:1px solid var(--line2); border-bottom-width:2px; border-radius:6px; color:var(--text); padding:.05rem .4rem; font-size:.75rem; }
+.to-overlay { position:fixed; inset:0; z-index:1050; display:grid; place-items:center; padding:1rem; background:rgba(5,8,14,.78); backdrop-filter:blur(5px); animation:fadeIn .25s ease both; }
+.to-card { width:min(420px,100%); text-align:center; padding:1.8rem 1.5rem; border-radius:22px; border:1px solid var(--warn); background:linear-gradient(180deg,var(--surface2),var(--surface)); box-shadow:0 0 0 6px rgba(245,183,59,.12), 0 30px 60px -20px rgba(0,0,0,.8); animation:noticeIn .4s var(--ease) both; }
+.to-title { color:var(--warn); font-weight:700; letter-spacing:.16em; text-transform:uppercase; font-size:.8rem; }
+.to-who { font-family:var(--font-display); font-weight:700; font-size:1.4rem; margin-top:.2rem; }
+.to-time { font-family:var(--font-display); font-weight:700; font-size:clamp(4rem,20vw,6rem); line-height:1.1; margin:.3rem 0 .6rem; }
+.to-time.to-low { color:var(--bad); animation:tagPulse 1s ease-in-out infinite; }
+.to-bar { height:8px; border-radius:99px; background:var(--line2); overflow:hidden; }
+.to-bar span { display:block; height:100%; width:100%; border-radius:99px; background:var(--warn); transition:width 1s linear; }
+  </style>
+</head>
+<body>
+  <div class="bg-fx" aria-hidden="true"></div>
+  <nav class="navbar navbar-expand-lg ph-nav sticky-top">
+    <div class="container">
+      <a class="navbar-brand ph-logo" href="#/inicio"><i class="bi bi-circle-fill"></i> PING<span>HUB</span></a>
+      <button class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#menu" aria-label="Menu"><span class="navbar-toggler-icon"></span></button>
+      <div class="collapse navbar-collapse" id="menu">
+        <ul class="navbar-nav ms-auto fw-medium">
+          <li class="nav-item"><a class="nav-link" data-r="partida" href="#/partida"><i class="bi bi-lightning-charge"></i>Partida</a></li>
+          <li class="nav-item"><a class="nav-link" data-r="torneio" href="#/torneio"><i class="bi bi-trophy"></i>Torneios</a></li>
+          <li class="nav-item"><a class="nav-link" data-r="ranking" href="#/ranking"><i class="bi bi-bar-chart-line"></i>Ranking</a></li>
+          <li class="nav-item"><a class="nav-link" data-r="atletas" href="#/atletas"><i class="bi bi-people"></i>Atletas</a></li>
+          <li class="nav-item"><a class="nav-link" data-r="historico" href="#/historico"><i class="bi bi-clock-history"></i>Histórico</a></li>
+          <li class="nav-item"><a class="nav-link" data-r="estudo" href="#/estudo"><i class="bi bi-mortarboard"></i>Estudo</a></li>
+          <li class="nav-item"><a class="nav-link" data-r="regras" href="#/regras"><i class="bi bi-journal-text"></i>Regras</a></li>
+          <li class="nav-item"><a class="nav-link" data-r="mesa" href="#/mesa"><i class="bi bi-hourglass-split"></i>Mesa</a></li>
+          <li class="nav-item"><a class="nav-link" data-r="admin" href="#/admin"><i class="bi bi-shield-lock"></i>Admin</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+  <main id="app" class="container py-4"></main>
+  <div class="toast-container position-fixed bottom-0 end-0 p-3" id="toasts"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+/* PingHub — núcleo do frontend: roteador por hash, chamadas à API e utilitários. */
+const PH = { routes: {}, cleanup: null };
+const $ = (sel, el = document) => el.querySelector(sel);
+const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
+
+const ADMIN_KEY = 'ph_admin_token';
+const adminToken = () => localStorage.getItem(ADMIN_KEY) || '';
+const isAdmin = () => !!adminToken();
+
+async function api(path, { method = 'GET', body } = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  const token = adminToken();
+  if (token) headers['X-Admin-Token'] = token;
+  const r = await fetch('/api' + path, {
+    method, headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    if (r.status === 401 && token) localStorage.removeItem(ADMIN_KEY);
+    throw new Error(data.error || 'Erro ' + r.status);
+  }
+  return data;
+}
+
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const fmtDate = d => d ? new Date(d).toLocaleDateString('pt-BR') : '';
+const fmtDur = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+const delta = n => n > 0 ? `<span class="up">▲ ${n}</span>` : n < 0 ? `<span class="down">▼ ${-n}</span>` : '<span class="text-secondary">–</span>';
+const LEVEL = { iniciante: 'Iniciante', intermediario: 'Intermediário', avancado: 'Avançado' };
+const HAND = { destro: 'Destro', canhoto: 'Canhoto' };
+const STYLE = { caneta: 'Caneta', classineta: 'Classineta', classica: 'Clássica' };
+const GAME_STYLE = { ataque: 'Ataque', contra_ataque: 'Contra-ataque', defesa: 'Defesa' };
+
+function avatar(a, big = false) {
+  const cls = 'avatar' + (big ? ' avatar-lg' : '');
+  if (a.has_photo) return `<img class="${cls}" src="/api/athletes/${a.id}/photo" alt="">`;
+  return `<span class="${cls}">${esc((a.name || '?').trim()[0].toUpperCase())}</span>`;
+}
+
+function toast(msg, kind = 'danger') {
+  const el = document.createElement('div');
+  el.className = `toast align-items-center text-bg-${kind} border-0`;
+  el.innerHTML = `<div class="d-flex"><div class="toast-body">${esc(msg)}</div><button class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>`;
+  $('#toasts').append(el);
+  const t = new bootstrap.Toast(el, { delay: 4000 });
+  t.show();
+  el.addEventListener('hidden.bs.toast', () => el.remove());
+}
+
+const render = html => {
+  const app = $('#app');
+  app.classList.remove('page-in');
+  app.innerHTML = html;
+  void app.offsetWidth;          // reinicia a animação de entrada
+  app.classList.add('page-in');
+  countUps(app);
+};
+const loading = () => render('<div class="sk mb-3" style="height:48px;width:38%"></div><div class="row g-3">' +
+  '<div class="col-md-4"><div class="sk"></div></div>'.repeat(3) + '</div>');
+const debounce = (fn, ms = 300) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+
+function adminGate() {
+  render(`<div class="card p-4 mx-auto text-center" style="max-width:520px">
+    <div class="display-5 mb-2"><i class="bi bi-shield-lock"></i></div>
+    <h2 class="ph-title">Área restrita</h2>
+    <p class="text-secondary">Só o administrador pode alterar atletas e criar ou excluir torneios.</p>
+    <div class="d-flex gap-2 justify-content-center flex-wrap"><a href="#/admin" class="btn btn-ph btn-go">Entrar como administrador</a>
+    <a href="#/inicio" class="btn btn-outline-secondary">Voltar</a></div></div>`);
+  return false;
+}
+
+PH.routes.admin = async () => {
+  if (adminToken()) {
+    let status = null;
+    try { status = await api('/admin/check'); } catch (e) { /* token inválido/expirado */ }
+    if (status?.admin) {
+      render(`<div class="card p-4 mx-auto text-center" style="max-width:520px">
+        <div class="display-5 mb-2 text-success"><i class="bi bi-shield-check"></i></div>
+        <h2 class="ph-title">Administrador conectado</h2>
+        <p class="text-secondary mb-3">Você pode editar atletas e criar ou excluir torneios. Partidas continuam abertas para todos.</p>
+        <div class="d-flex gap-2 justify-content-center flex-wrap"><a href="#/atletas" class="btn btn-ph">Gerenciar atletas</a>
+        <a href="#/torneio" class="btn btn-outline-light">Gerenciar torneios</a>
+        <button id="logout" class="btn btn-outline-danger">Sair</button></div></div>`);
+      $('#logout').addEventListener('click', () => { localStorage.removeItem(ADMIN_KEY); toast('Sessão de administrador encerrada.', 'success'); go('#/admin'); });
+      return;
+    }
+    localStorage.removeItem(ADMIN_KEY);
+  }
+  render(`<div class="card p-4 mx-auto" style="max-width:520px"><div class="text-center mb-3">
+      <div class="display-5 mb-2"><i class="bi bi-shield-lock"></i></div><h2 class="ph-title m-0">Área do administrador</h2>
+      <p class="text-secondary mb-0">A senha não fica salva no navegador.</p></div>
+    <label class="form-label" for="adminPass">Senha de administrador</label>
+    <input id="adminPass" type="password" class="form-control mb-3" autocomplete="current-password" autofocus>
+    <button id="adminLogin" class="btn btn-ph btn-go w-100"><i class="bi bi-box-arrow-in-right"></i> Entrar</button>
+    <p class="small text-secondary mt-3 mb-0">Acesso somente para o dono do PingHub. As demais áreas continuam livres.</p></div>`);
+  const enter = async () => {
+    const password = $('#adminPass').value;
+    if (!password) return toast('Digite a senha.');
+    try {
+      const r = await api('/admin/login', { method: 'POST', body: { password } });
+      localStorage.setItem(ADMIN_KEY, r.token);
+      toast('Administrador conectado.', 'success');
+      go('#/admin');
+    } catch (e) { toast(e.message); }
+  };
+  $('#adminLogin').addEventListener('click', enter);
+  $('#adminPass').addEventListener('keydown', e => { if (e.key === 'Enter') enter(); });
+};
+
+/* ripple nos botões (interatividade) */
+document.addEventListener('click', e => {
+  const btn = e.target.closest?.('.btn');
+  if (!btn || btn.disabled || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const r = btn.getBoundingClientRect();
+  const size = Math.max(r.width, r.height) * 1.8;
+  const x = e.detail ? e.clientX : r.left + r.width / 2;
+  const y = e.detail ? e.clientY : r.top + r.height / 2;
+  const ripple = document.createElement('span');
+  ripple.className = 'ph-ripple';
+  ripple.style.width = ripple.style.height = `${size}px`;
+  ripple.style.left = `${x - r.left - size / 2}px`;
+  ripple.style.top = `${y - r.top - size / 2}px`;
+  btn.appendChild(ripple);
+  ripple.addEventListener('animationend', () => ripple.remove(), { once: true });
+});
+
+/* brilho que segue o cursor nos cards */
+document.addEventListener('pointermove', e => {
+  const c = e.target.closest?.('.card'); if (!c) return;
+  const r = c.getBoundingClientRect();
+  c.style.setProperty('--mx', (e.clientX - r.left) + 'px'); c.style.setProperty('--my', (e.clientY - r.top) + 'px');
+}, { passive: true });
+
+/* botões principais "atraídos" pelo cursor */
+document.addEventListener('pointermove', e => {
+  const b = e.target.closest?.('.btn-ph:not(.pt-btn)'); if (!b || b.classList.contains('btn-lg')) return;
+  const r = b.getBoundingClientRect();
+  b.style.setProperty('--tx', ((e.clientX - r.left - r.width / 2) * .12).toFixed(1) + 'px');
+  b.style.setProperty('--ty', ((e.clientY - r.top - r.height / 2) * .22).toFixed(1) + 'px');
+}, { passive: true });
+document.addEventListener('pointerout', e => {
+  const b = e.target.closest?.('.btn-ph'); if (b) { b.style.removeProperty('--tx'); b.style.removeProperty('--ty'); }
+});
+
+/* números que sobem até o valor final */
+function countUps(root) {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  $$('[data-count]', root).forEach(el => {
+    const to = +el.dataset.count, from = Math.round(to * .85), t0 = performance.now();
+    const step = t => { const k = Math.min((t - t0) / 900, 1); el.textContent = Math.round(from + (to - from) * (1 - Math.pow(1 - k, 3))); if (k < 1) requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+  });
+}
+
+function beep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const o = ctx.createOscillator(); o.frequency.value = 880; o.connect(ctx.destination);
+    o.start(); setTimeout(() => { o.stop(); ctx.close(); }, 600);
+  } catch (e) { /* sem áudio */ }
+  if (navigator.vibrate) navigator.vibrate([300, 150, 300]);
+}
+
+async function route() {
+  const [name, ...args] = (location.hash.replace(/^#\/?/, '') || 'inicio').split('/');
+  $$('.nav-link').forEach(a => a.classList.toggle('active', a.dataset.r === name));
+  if (PH.cleanup) { PH.cleanup(); PH.cleanup = null; }
+  const view = PH.routes[name];
+  if (!view) return render('<h2>Página não encontrada</h2>');
+  loading();
+  window.scrollTo(0, 0);
+  try { await view(...args); }
+  catch (e) { render(`<div class="alert alert-danger">${esc(e.message)}</div>`); }
+}
+
+// navega para uma rota; se já estiver nela, força a renderização (botões "Nova partida", cancelar etc.)
+function go(hash) {
+  if (location.hash === hash) route();
+  else location.hash = hash;
+}
+
+// links para a rota atual também precisam funcionar (o hashchange não dispara sozinho)
+document.addEventListener('click', e => {
+  const a = e.target.closest?.('a[href^="#/"]');
+  if (a && a.getAttribute('href') === location.hash) {
+    e.preventDefault();
+    route();
+  }
+});
+
+// gráfico de ELO: escolhe o ponto mais próximo do cursor (os pontos podem ficar
+// muito juntos em horários de pico), mostra o valor e fecha ao clicar fora.
+function nearestEloPoint(svg, e) {
+  const r = svg.getBoundingClientRect(), vb = svg.viewBox.baseVal;
+  if (!r.width || !r.height) return null;
+  const sx = vb.width / r.width, sy = vb.height / r.height;
+  const px = vb.x + (e.clientX - r.left) * sx, py = vb.y + (e.clientY - r.top) * sy;
+  const max = 14 * Math.max(sx, sy);
+  let best = null, bestD = Infinity;
+  svg.querySelectorAll('.ph-point').forEach(p => {
+    const dot = p.querySelector('.ph-chart-dot');
+    if (!dot) return;
+    const dx = dot.cx.baseVal.value - px, dy = dot.cy.baseVal.value - py, d = dx * dx + dy * dy;
+    if (d < bestD) { bestD = d; best = p; }
+  });
+  return best && bestD <= max * max ? best : null;
+}
+
+document.addEventListener('pointermove', e => {
+  const svg = e.target.closest?.('.ph-chart');
+  const hovered = $$('.ph-point.hover');
+  if (!svg || e.pointerType === 'touch') {
+    hovered.forEach(p => p.classList.remove('hover'));
+    $$('.ph-chart.has-hover').forEach(s => s.classList.remove('has-hover'));
+    return;
+  }
+  const point = nearestEloPoint(svg, e);
+  hovered.forEach(p => { if (p !== point) p.classList.remove('hover'); });
+  if (!point) { svg.classList.remove('has-hover'); return; }
+  point.classList.add('hover');
+  svg.classList.add('has-hover');
+});
+
+document.addEventListener('click', e => {
+  const svg = e.target.closest?.('.ph-chart');
+  const active = $$('.ph-point.active');
+  if (!svg) {
+    active.forEach(p => p.classList.remove('active'));
+    $$('.ph-point:focus').forEach(p => p.blur());
+    return;
+  }
+  const point = nearestEloPoint(svg, e);
+  const wasActive = point?.classList.contains('active');
+  active.forEach(p => p.classList.remove('active'));
+  $$('.ph-point:focus').forEach(p => { if (p !== point) p.blur(); });
+  if (!point) return;
+  if (wasActive) point.blur();
+  else point.classList.add('active');
+});
+
+window.addEventListener('hashchange', route);
+window.addEventListener('DOMContentLoaded', route);
+
+
+/* Atletas: lista, formulário (novo/editar) e perfil com gráfico de ELO. */
+function resizeImage(file, size = 256) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const s = Math.min(img.width, img.height), c = document.createElement('canvas');
+      c.width = c.height = size;
+      c.getContext('2d').drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, size, size);
+      resolve(c.toDataURL('image/jpeg', 0.8));
+    };
+    img.onerror = () => reject(new Error('Imagem inválida.'));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+function eloChart(history) {
+  const entries = [...history]
+    .map(h => ({ ...h, at: new Date(h.created_at).getTime(), value: +h.elo_after, delta: +h.delta || 0 }))
+    .filter(h => Number.isFinite(h.at))
+    .sort((a, b) => a.at - b.at);
+  if (!entries.length) return '<p class="text-secondary mb-0">Sem partidas ranqueadas ainda.</p>';
+
+  // ponto inicial de 1000 um minuto antes da primeira partida ranqueada
+  const pts = [{ at: entries[0].at - 60_000, value: 1000, delta: 0, initial: true }, ...entries];
+  const values = pts.map(p => p.value);
+  const lo = Math.min(...values), hi = Math.max(...values);
+  const span = Math.max(hi - lo, 10);
+  const pad = Math.max(5, Math.round(span * .12));
+  const step = span <= 40 ? 5 : span <= 100 ? 10 : span <= 200 ? 20 : span <= 500 ? 50 : 100;
+  const yMin = Math.floor((lo - pad) / step) * step;
+  const yMax = Math.ceil((hi + pad) / step) * step || yMin + step;
+
+  // largura cresce com o número de partidas para os valores do ELO não se sobrepuserem
+  const W = Math.max(640, 96 + pts.length * 34), H = 230, L = 44, R = 20, T = 20, B = 34;
+  const PW = W - L - R, PH = H - T - B;
+  const tMin = pts[0].at, tMax = pts[pts.length - 1].at;
+  const spanT = Math.max(tMax - tMin, 1);
+  const x = at => L + (at - tMin) / spanT * PW;
+  const y = v => T + (yMax - v) / (yMax - yMin) * PH;
+  const area = `M ${x(tMin).toFixed(1)} ${y(yMin).toFixed(1)} L ` +
+    `${pts.map(p => `${x(p.at).toFixed(1)} ${y(p.value).toFixed(1)}`).join(' L ')} ` +
+    `L ${x(tMax).toFixed(1)} ${y(yMin).toFixed(1)} Z`;
+
+  // grade horizontal (ELO)
+  const yGrid = Array.from({ length: 5 }, (_, i) => {
+    const v = yMin + (yMax - yMin) * i / 4, yy = y(v);
+    return `<line class="ph-chart-grid" x1="${L}" y1="${yy.toFixed(1)}" x2="${W - R}" y2="${yy.toFixed(1)}"
+        stroke="rgba(255,255,255,.09)" stroke-width="1"/>
+      <text class="ph-chart-axis" x="${L - 8}" y="${(yy + 3.5).toFixed(1)}" text-anchor="end"
+        fill="#8b95b8" font-size="11" font-weight="600">${Math.round(v)}</text>`;
+  }).join('');
+
+  // grade vertical cronológica
+  const spanMs = tMax - tMin;
+  const fmtTick = ms => {
+    const d = new Date(ms);
+    if (spanMs >= 36 * 3600 * 1000) return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    if (spanMs >= 6 * 3600 * 1000) {
+      return `${d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} ` +
+             d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    }
+    if (spanMs < 10 * 60 * 1000) {
+      return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+    return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  };
+  const xGrid = Array.from({ length: 5 }, (_, i) => {
+    const at = tMin + spanMs * i / 4, xx = x(at);
+    const anchor = i === 0 ? 'start' : i === 4 ? 'end' : 'middle';
+    return `<line class="ph-chart-grid" x1="${xx.toFixed(1)}" y1="${T}" x2="${xx.toFixed(1)}" y2="${H - B}"
+        stroke="rgba(255,255,255,.09)" stroke-width="1"/>
+      <text class="ph-chart-axis" x="${xx.toFixed(1)}" y="${H - 10}" text-anchor="${anchor}"
+        fill="#8b95b8" font-size="11" font-weight="600">${fmtTick(at)}</text>`;
+  }).join('');
+
+  const UP = '#22c55e', DOWN = '#f45b69', FLAT = '#94a3b8';
+  const col = d => d > 0 ? UP : d < 0 ? DOWN : FLAT;
+  const net = pts[pts.length - 1].value - 1000;
+  const fillCol = net >= 0 ? UP : DOWN;
+
+  // linha-base do ELO inicial (1000)
+  const base = 1000 >= yMin && 1000 <= yMax
+    ? `<line x1="${L}" y1="${y(1000).toFixed(1)}" x2="${W - R}" y2="${y(1000).toFixed(1)}" stroke="rgba(255,255,255,.3)" stroke-width="1" stroke-dasharray="4 4"/>
+       <text x="${W - R}" y="${(y(1000) - 4).toFixed(1)}" text-anchor="end" fill="#aab5cb" font-size="10" font-weight="600">ELO inicial 1000</text>` : '';
+
+  // cada trecho é verde (subiu), vermelho (caiu) ou cinza (igual)
+  const segs = pts.slice(1).map((p, i) => {
+    const q = pts[i];
+    return `<line class="ph-seg" pathLength="1" x1="${x(q.at).toFixed(1)}" y1="${y(q.value).toFixed(1)}" x2="${x(p.at).toFixed(1)}" y2="${y(p.value).toFixed(1)}"
+      stroke="${col(p.value - q.value)}" style="animation-delay:${(.15 + i * 1.2 / Math.max(pts.length - 1, 1)).toFixed(2)}s"/>`;
+  }).join('');
+
+  // cada ponto mostra o ELO ao passar o mouse, focar pelo teclado ou tocar/clicar
+  const points = pts.map((p, i) => {
+    const last = i === pts.length - 1;
+    const dt = new Date(p.at).toLocaleString('pt-BR');
+    const diff = p.initial ? 'inicial' : p.delta ? `${p.delta > 0 ? '+' : ''}${p.delta}` : 'sem alteração';
+    const cx = x(p.at), cy = y(p.value), below = cy < T + 16;
+    const anchor = i === 0 ? 'start' : last ? 'end' : 'middle';
+    const label = `<text class="ph-chart-value" x="${cx.toFixed(1)}"
+      y="${(below ? cy + 15 : cy - 8).toFixed(1)}" text-anchor="${anchor}">${p.value}</text>`;
+    const title = esc(`${dt} • ELO ${p.value} (${diff})`);
+    return `<g class="ph-point${last ? ' last' : ''}" tabindex="0" role="button" aria-label="${title}">
+      <circle class="ph-chart-dot${last ? ' last' : ''}" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}"
+        r="${last ? 5 : 3}" fill="${p.initial ? FLAT : col(p.delta)}" stroke="${last ? '#fff' : '#121826'}" stroke-width="${last ? 2 : 1.5}">
+        <title>${title}</title></circle>
+      ${label}
+    </g>`;
+  }).join('');
+
+  return `<div class="ph-chart-wrap"><svg class="ph-chart" viewBox="0 0 ${W} ${H}" style="min-width:${W}px" role="group" aria-label="Evolução cronológica do ELO">
+    <defs><linearGradient id="phEloFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${fillCol}" stop-opacity=".28"/><stop offset="100%" stop-color="${fillCol}" stop-opacity="0"/>
+    </linearGradient></defs>
+    <path d="${area}" fill="url(#phEloFill)"/>
+    ${yGrid}${xGrid}${base}${segs}${points}
+  </svg></div>
+  <div class="ph-legend"><span class="up">● Subiu</span><span class="down">● Caiu</span><span class="text-secondary">● Sem alteração</span>
+    <span class="ms-auto ${net > 0 ? 'up' : net < 0 ? 'down' : 'text-secondary'}">Saldo: ${net > 0 ? '+' : ''}${net} pts</span></div>`;
+}
+
+async function athleteList() {
+  render(`<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+      <h2 class="ph-title m-0">Atletas</h2>
+      <div class="d-flex gap-2"><input id="q" class="form-control" placeholder="Buscar atleta…">
+      ${isAdmin() ? `<a href="#/atletas/novo" class="btn btn-ph text-nowrap"><i class="bi bi-plus-lg"></i> Novo</a>` : ''}</div></div>
+    <div id="list" class="row g-3"></div>`);
+  const load = async () => {
+    const rows = await api('/athletes?q=' + encodeURIComponent($('#q').value));
+    $('#list').innerHTML = rows.map(a => `<div class="col-6 col-md-4 col-lg-3"><a href="#/atletas/${a.id}" class="text-decoration-none">
+      <div class="card clickable h-100 p-3 text-center align-items-center">${avatar(a, true)}
+      <div class="fw-bold mt-2 text-white">${esc(a.name)}</div><div class="small text-secondary">${esc(a.nickname || '')}</div>
+      <div class="small text-secondary">${HAND[a.hand]} · ${GAME_STYLE[a.game_style]}</div>
+      ${a.club ? `<div class="small text-secondary"><i class="bi bi-geo-alt"></i> ${esc(a.club)}</div>` : ''}
+      <span class="badge text-bg-info mt-2">ELO ${a.elo}</span></div></a></div>`).join('')
+      || `<p class="text-secondary">Nenhum atleta cadastrado.${isAdmin() ? ' Clique em “Novo”.' : ''}</p>`;
+  };
+  $('#q').addEventListener('input', debounce(load));
+  await load();
+}
+
+async function athleteForm(id) {
+  if (!isAdmin()) return adminGate();
+  const a = id ? (await api('/athletes/' + id)).athlete : { name: '', nickname: '', hand: 'destro', play_style: 'classica', game_style: 'ataque' };
+  const opts = (map, cur) => Object.entries(map).map(([k, v]) => `<option value="${k}" ${k === cur ? 'selected' : ''}>${v}</option>`).join('');
+  render(`<h2 class="ph-title mb-3">${id ? 'Editar' : 'Novo'} atleta</h2>
+    <div class="card p-3" style="max-width:520px"><div class="d-flex align-items-center gap-3 mb-3">
+      <div id="prev">${avatar(a, true)}</div><input type="file" id="file" accept="image/*" class="form-control"></div>
+      <label class="form-label">Nome</label><input id="name" class="form-control mb-2" maxlength="100" value="${esc(a.name)}">
+      <label class="form-label">Apelido</label><input id="nick" class="form-control mb-2" maxlength="50" value="${esc(a.nickname)}">
+      <label class="form-label">Empunhadura</label><select id="style" class="form-select mb-2">${opts(STYLE, a.play_style)}</select>
+      <label class="form-label">Mão</label><select id="hand" class="form-select mb-2">${opts(HAND, a.hand)}</select>
+      <label class="form-label">Estilo de jogo</label><select id="game" class="form-select mb-2">${opts(GAME_STYLE, a.game_style)}</select>
+      <label class="form-label">Clube / equipe</label><input id="club" class="form-control mb-2" maxlength="80" value="${esc(a.club)}">
+      <label class="form-label">Data de nascimento</label><input id="birth" type="date" class="form-control mb-2" value="${esc(a.birth_date ? String(a.birth_date).slice(0, 10) : '')}">
+      <div class="row g-2 mb-2"><div class="col-12"><label class="form-label">Madeira (base da raquete)</label><input id="blade" class="form-control" maxlength="80" value="${esc(a.blade)}"></div>
+        <div class="col-6"><label class="form-label">Borracha forehand</label><input id="rfh" class="form-control" maxlength="80" value="${esc(a.rubber_fh)}"></div>
+        <div class="col-6"><label class="form-label">Borracha backhand</label><input id="rbh" class="form-control" maxlength="80" value="${esc(a.rubber_bh)}"></div></div>
+      <label class="form-label">Sobre o atleta</label><textarea id="bio" class="form-control mb-3" rows="3" maxlength="500">${esc(a.bio)}</textarea>
+      <div class="d-flex gap-2"><button id="save" class="btn btn-ph btn-go"><i class="bi bi-check-lg"></i> Salvar</button><a href="#/atletas${id ? '/' + id : ''}" class="btn btn-outline-secondary">Cancelar</a></div></div>`);
+  let photo;   // undefined = não mudou
+  $('#file').addEventListener('change', async e => {
+    try {
+      photo = await resizeImage(e.target.files[0]);
+      $('#prev').innerHTML = `<img class="avatar avatar-lg" src="${photo}">`;
+    } catch (err) { toast(err.message); }
+  });
+  $('#save').addEventListener('click', async () => {
+    const body = { name: $('#name').value, nickname: $('#nick').value, hand: $('#hand').value,
+      play_style: $('#style').value, game_style: $('#game').value,
+      club: $('#club').value, birth_date: $('#birth').value, blade: $('#blade').value,
+      rubber_fh: $('#rfh').value, rubber_bh: $('#rbh').value, bio: $('#bio').value };
+    if (photo !== undefined) body.photo = photo;
+    try {
+      const saved = await api('/athletes' + (id ? '/' + id : ''), { method: id ? 'PUT' : 'POST', body });
+      go('#/atletas/' + saved.id);
+    } catch (err) { toast(err.message); }
+  });
+}
+
+function titleMedals(t) {
+  return [['first', '🥇', '1º lugar'], ['second', '🥈', '2º lugar'], ['third', '🥉', '3º lugar']]
+    .filter(([key]) => (t[key] || 0) > 0)
+    .map(([key, icon, label]) => `<span class="ph-medal" title="${label}" aria-label="${label}">${icon} ${t[key]}</span>`)
+    .join('');
+}
+
+const ageOf = d => {
+  if (!d) return null;
+  const b = new Date(d), n = new Date();
+  return n.getFullYear() - b.getFullYear() - (n < new Date(n.getFullYear(), b.getMonth(), b.getDate()) ? 1 : 0);
+};
+
+function profileExtras(a, st) {
+  const age = ageOf(a.birth_date);
+  const line = [a.club && `<i class="bi bi-geo-alt"></i> ${esc(a.club)}`, age != null && `<i class="bi bi-cake2"></i> ${age} anos`].filter(Boolean).join(' &nbsp;·&nbsp; ');
+  const gear = [['Madeira', a.blade], ['Borracha FH', a.rubber_fh], ['Borracha BH', a.rubber_bh]].filter(([, v]) => v);
+  const streak = st.streak > 0 ? `${st.streak}V` : st.streak < 0 ? `${-st.streak}D` : '–';
+  const tiles = [['Pontos', `${st.points_for}–${st.points_against}`], ['Sequência atual', streak], ['Maior sequência', st.best_streak ? st.best_streak + 'V' : '–'],
+    ['ELO máximo', st.best_elo], ['Duração média', st.matches ? fmtDur(st.avg_duration) : '–'],
+    ['Rival frequente', st.rival ? `${esc(st.rival.name)} <small class="text-secondary">${st.rival.wins}–${st.rival.matches - st.rival.wins}</small>` : '–']];
+  return { line,
+    extra: `<div class="row g-3 mb-4 text-center">${tiles.map(([k, v]) => `<div class="col-6 col-md-4 col-lg-2"><div class="card p-3 h-100"><div class="fs-5 fw-bold score-tile">${v}</div><div class="small text-secondary">${k}</div></div></div>`).join('')}</div>` +
+      (gear.length || a.bio ? `<div class="card p-3 mb-4"><h5><i class="bi bi-tools"></i> Equipamento e perfil</h5>${gear.length ? `<div class="gear mb-2">${gear.map(([k, v]) => `<div><small>${k}</small>${esc(v)}</div>`).join('')}</div>` : ''}${a.bio ? `<p class="mb-0 text-secondary">${esc(a.bio)}</p>` : ''}</div>` : '') };
+}
+
+async function athleteProfile(id) {
+  const { athlete: a, stats, recent, elo_history = [], tournaments = [], titles = {} } = await api('/athletes/' + id);
+  const total = a.wins + a.losses, ex = profileExtras(a, stats);
+  render(`<div class="d-flex flex-wrap align-items-center gap-3 mb-4">${avatar(a, true)}
+    <div class="flex-grow-1"><h2 class="m-0">${esc(a.name)}</h2><div class="text-secondary">${esc(a.nickname || '')}</div>
+      <span class="badge text-bg-secondary">${STYLE[a.play_style]}</span>
+      <span class="badge text-bg-secondary">${HAND[a.hand]}</span>
+      <span class="badge text-bg-secondary">${GAME_STYLE[a.game_style]}</span>
+      ${ex.line ? `<div class="small text-secondary mt-2">${ex.line}</div>` : ''}</div>
+    <div class="text-center"><div class="display-4 fw-bold elo-big" data-count="${a.elo}">${a.elo}</div><div class="small text-secondary">ELO</div></div>
+    ${isAdmin() ? `<div class="d-flex gap-2"><a class="btn btn-outline-light" href="#/atletas/${id}/editar"><i class="bi bi-pencil"></i></a>
+      <button id="del" class="btn btn-outline-danger"><i class="bi bi-trash"></i></button></div>` : ''}</div>
+    <div class="row g-3 mb-4 text-center">${[['Vitórias', a.wins], ['Derrotas', a.losses],
+      ['Aproveitamento', total ? Math.round(a.wins / total * 100) + '%' : '–'],
+      ['Sets ganhos', `${stats.sets_won}/${stats.sets_played}`]]
+      .map(([k, v]) => `<div class="col-6 col-md"><div class="card p-3 h-100"><div class="fs-3 fw-bold">${v}</div><div class="small text-secondary">${k}</div></div></div>`).join('')}
+      ${titles.total ? `<div class="col-12 col-md"><div class="card p-3 h-100"><div class="fs-4 fw-bold d-flex align-items-center justify-content-center gap-3 flex-wrap">${titleMedals(titles)}</div><div class="small text-secondary">Títulos</div></div></div>` : ''}</div>
+    ${ex.extra}
+    <div class="card p-3 mb-4"><h5>Evolução do ELO</h5>${eloChart(elo_history)}</div>
+    <div class="row g-3"><div class="col-lg-7"><div class="card p-3"><h5>Últimas partidas</h5><table class="table table-sm mb-0"><tbody>
+      ${recent.map(m => `<tr><td>${fmtDate(m.created_at)}</td><td>vs ${esc(m.opponent)}</td><td>${m.mode === 'cooperative' ? `<span class="text-secondary">${fmtDur(m.duration || 0)}</span>` : `${m.sets_me} x ${m.sets_opp}`}</td>
+        <td>${m.mode === 'cooperative' ? '<span class="text-secondary">Treino</span>' : m.result === 'W' ? '<span class="up">V</span>' : m.result === 'L' ? '<span class="down">D</span>' : '<span class="text-secondary">—</span>'}</td></tr>`).join('')
+        || '<tr><td class="text-secondary">Nenhuma partida.</td></tr>'}</tbody></table></div></div>
+      <div class="col-lg-5"><div class="card p-3"><h5>Torneios</h5>
+      ${tournaments.map(t => `<a class="d-block text-decoration-none py-1" href="#/torneio/${t.id}">${t.champion_id === a.id ? '🏆 ' : ''}${esc(t.name)} <small class="text-secondary">${fmtDate(t.date)}</small></a>`).join('')
+        || '<span class="text-secondary">Nenhum torneio.</span>'}</div></div></div>`);
+  $('#del')?.addEventListener('click', async () => {
+    if (!confirm(`Excluir ${a.name}? As partidas antigas continuam no histórico.`)) return;
+    await api('/athletes/' + id, { method: 'DELETE' });
+    go('#/atletas');
+  });
+}
+
+PH.athleteProfile = athleteProfile;
+PH.routes.atletas = (a, b) => a === 'novo' ? athleteForm() : a && b === 'editar' ? athleteForm(a) : a ? athleteProfile(a) : athleteList();
+
+
+/* Partida: configuração, placar ao vivo (com desfazer, saque e cronômetro) e resultado. */
+let ATHLETES = [];
+
+// ---- regras de pontuação (puras) ----
+const setWon = (c, target) => Math.max(...c) >= target && (target < 11 || Math.abs(c[0] - c[1]) >= 2);
+
+function compute(log, cfg) {
+  const need = Math.ceil(cfg.best_of / 2), sets = [], w = [0, 0];
+  let c = [0, 0];
+  for (const side of log) {
+    c[side]++;
+    if (setWon(c, cfg.points)) {
+      sets.push([...c]); w[c[0] > c[1] ? 0 : 1]++; c = [0, 0];
+      if (cfg.mode === 'competitive' && (w[0] === need || w[1] === need)) return { sets, c, w, done: true };
+    }
+  }
+  return { sets, c, w, done: false };
+}
+
+// ---- tela de configuração ----
+// seletor segmentado (botões lado a lado) — o valor fica em data-value
+const seg = (id, items, cur) => `<div class="seg" id="${id}" data-seg="1" data-value="${cur}" role="group">` +
+  items.map(([v, label]) => `<button type="button" class="seg-btn ${String(v) === String(cur) ? 'active' : ''}" data-v="${v}">${label}</button>`).join('') + '</div>';
+const val = id => { const e = $('#' + id); return e.dataset.seg ? e.dataset.value : e.value; };
+document.addEventListener('click', e => {
+  const b = e.target.closest?.('.seg-btn'); if (!b) return;
+  const g = b.parentElement;
+  g.dataset.value = b.dataset.v;
+  $$('.seg-btn', g).forEach(x => x.classList.toggle('active', x === b));
+  g.dispatchEvent(new Event('change', { bubbles: true }));
+});
+
+PH.routes.partida = async () => {
+  ATHLETES = await api('/athletes');
+  const opts = '<option value="">Anônimo (digitar nome)</option>' +
+    ATHLETES.map(a => {
+      const tags = [HAND[a.hand], GAME_STYLE[a.game_style]].filter(Boolean).join(' · ');
+      return `<option value="${a.id}">${esc(a.name)} (ELO ${a.elo}${tags ? ' · ' + tags : ''})</option>`;
+    }).join('');
+  const side = n => `<div class="col-md-6"><label class="form-label fw-semibold"><span class="pdot" style="background:var(--p${n})"></span>Jogador ${n}</label>
+    <select id="sel${n}" class="form-select mb-2">${opts}</select>
+    <input id="nm${n}" class="form-control" placeholder="Nome" maxlength="100"></div>`;
+  render(`<h2 class="ph-title mb-3">Nova partida</h2><div class="card p-3 p-md-4" style="max-width:760px">
+    <div class="row g-3">
+      <div class="col-12 col-sm-6"><label class="form-label">Modo</label>
+        ${seg('mode', [['competitive', 'Competitivo'], ['cooperative', 'Cooperativo']], 'competitive')}</div>
+      <div class="col-12 col-sm-6"><label class="form-label">Modalidade</label>
+        ${seg('modality', [['singles', 'Individual'], ['doubles', 'Duplas']], 'singles')}</div>
+      <div class="col-12"><div class="hint" id="modeHint"></div></div>
+      <div class="col-12" id="pointsBox"><label class="form-label">Pontos por set</label>
+        ${seg('points', [3, 5, 7, 9, 11, 15, 21].map(p => [p, p]), 3)}</div>
+      <div class="col-12" id="boBox"><label class="form-label">Melhor de (sets)</label>
+        ${seg('bo', [1, 3, 5, 7].map(p => [p, p]), 1)}</div>
+      <div class="col-12 d-none" id="serverBox"><label class="form-label">Saque inicial</label>
+        ${seg('server', [['1', 'Jogador 1'], ['2', 'Jogador 2']], '1')}
+        <div class="hint mt-2">A posse do saque troca a cada 2 pontos e, a partir de 10-10, a cada ponto.</div></div>
+      <div class="col-12 col-sm-6 d-none" id="minBox"><label class="form-label">Duração (min)</label>
+        <input id="minutes" type="number" min="1" max="120" value="10" class="form-control"></div>
+      ${side(1)}${side(2)}
+      <div class="col-12"><label class="form-label">Observações <small class="text-secondary">(opcional)</small></label>
+        <input id="notes" class="form-control" maxlength="200" placeholder="Ex.: amistoso, treino de saque…"></div>
+    </div>
+    <button id="start" class="btn btn-ph btn-go btn-lg w-100 mt-4"><i class="bi bi-play-fill"></i> Iniciar partida</button></div>`);
+
+  const sync = () => {
+    const coop = val('mode') === 'cooperative', dbl = val('modality') === 'doubles', serve = !coop && +val('points') >= 7;
+    $('#pointsBox').classList.toggle('d-none', coop); $('#boBox').classList.toggle('d-none', coop);
+    $('#serverBox').classList.toggle('d-none', !serve); $('#minBox').classList.toggle('d-none', !coop);
+    $('#modeHint').innerHTML = coop
+      ? '<i class="bi bi-people"></i> Treino em conjunto: apenas o tempo, sem pontos, sets, vencedor, ELO ou avisos de ponto.'
+      : '<i class="bi bi-trophy"></i> Valendo: o placar segue as regras, define o vencedor e atualiza o ELO (individual, entre atletas cadastrados).';
+    [1, 2].forEach(n => {
+      $('#sel' + n).classList.toggle('d-none', dbl);
+      $('#nm' + n).classList.toggle('d-none', !dbl && $('#sel' + n).value !== '');
+      $('#nm' + n).placeholder = dbl ? 'Ex.: Ana / Bia' : 'Nome';
+    });
+  };
+  $$('#mode, #modality, #points, #sel1, #sel2').forEach(e => e.addEventListener('change', sync));
+  sync();
+
+  $('#start').addEventListener('click', () => {
+    const dbl = val('modality') === 'doubles';
+    const who = n => {
+      const a = !dbl && ATHLETES.find(x => x.id == $('#sel' + n).value);
+      return a ? { athlete_id: a.id, name: a.name } : { name: $('#nm' + n).value.trim() || (dbl ? `Dupla ${n}` : `Jogador ${n}`) };
+    };
+    const p1 = who(1), p2 = who(2);
+    if (p1.athlete_id && p1.athlete_id === p2.athlete_id) return toast('Escolha atletas diferentes.');
+    startPlay({ mode: val('mode'), modality: val('modality'), points: +val('points'),
+      best_of: +val('bo'), minutes: +$('#minutes').value || 10, server: +val('server') - 1,
+      p1, p2, notes: $('#notes').value.trim() });
+  });
+};
+
+// ---- partida de torneio ----
+PH.routes.jogar = async (tid, mid) => {
+  const d = await api('/tournaments/' + tid);
+  const m = d.matches.find(r => r.id == mid);
+  if (!m || m.status === 'done' || !m.player1_id || !m.player2_id) throw new Error('Confronto indisponível.');
+  startPlay({ mode: 'competitive', modality: 'singles', points: d.tournament.points_per_set, best_of: d.tournament.best_of,
+    p1: { athlete_id: m.player1_id, name: m.p1_name }, p2: { athlete_id: m.player2_id, name: m.p2_name }, tm: +mid, tid: +tid });
+};
+
+// ---- placar ao vivo ----
+async function startPlay(cfg) {
+  const log = [], t0 = Date.now(), coop = cfg.mode === 'cooperative', need = Math.ceil(cfg.best_of / 2);
+  let saved = false, lastTap = 0, wake = null, tick, prev = [0, 0], prevW = [0, 0];
+  let swapped = false, toUsed = [false, false], toEnd = 0, toWho = '', noticeTimer;
+  const names = [cfg.p1.name, cfg.p2.name];
+
+  render(`<div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+      <div><span class="badge text-bg-info fs-6" id="setLabel"></span> <span id="clock" class="ms-2 fs-4 fw-bold ${coop ? 'd-none' : ''}"></span></div>
+      <div class="btn-group"><button id="undo" class="btn btn-outline-light ${coop ? 'd-none' : ''}"><i class="bi bi-arrow-counterclockwise"></i> Desfazer</button>
+      <button id="end" class="btn btn-outline-danger">${coop ? 'Encerrar' : 'Cancelar'}</button></div></div>
+    <div id="scoreTop" class="d-flex gap-2 flex-wrap mb-2 ${coop ? 'd-none' : ''}"></div>
+    <div id="score" class="score-area"></div><div id="alert" class="mt-3"></div>
+    <div id="toLayer"></div>
+    <div class="hint text-center mt-3 d-none d-md-block">${coop ? 'Treino cooperativo: apenas o tempo.' : '<kbd>←</kbd> <kbd>→</kbd> marcam ponto · <kbd>Backspace</kbd> desfaz'}</div>`);
+
+  const notice = (html, ms = 6000) => {
+    $('#alert').innerHTML = `<div class="notice">${html}</div>`;
+    clearTimeout(noticeTimer);
+    if (ms) noticeTimer = setTimeout(() => { $('#alert').innerHTML = ''; }, ms);
+  };
+
+  // Saque: 2 pontos para cada, alternando; em 10-10, 1 ponto para cada. O primeiro
+  // sacador de cada set alterna (quem começou sacando no set 1 recebe no set 2...).
+  const serverOf = st => {
+    const first = ((cfg.server ?? 0) + st.sets.length) % 2;
+    const total = st.c[0] + st.c[1];
+    return total < 20 ? first ^ (Math.floor(total / 2) % 2) : first ^ ((total - 20) % 2);
+  };
+
+  const draw = () => {
+    if (coop) {
+      const left = Math.max(0, cfg.minutes * 60 - (Date.now() - t0) / 1000);
+      $('#setLabel').textContent = 'Treino cooperativo';
+      $('#score').innerHTML = `<div class="card p-4 text-center" style="grid-column:1/-1">
+        <div class="h5 mb-1"><span class="pdot" style="background:var(--p1)"></span> ${esc(names[0])}
+          <span class="text-secondary mx-2">com</span> <span class="pdot" style="background:var(--p2)"></span> ${esc(names[1])}</div>
+        <div class="display-1 fw-bold score-tile" id="coopClock">${fmtDur(left)}</div>
+        <div class="text-secondary">Tempo restante</div></div>`;
+      $('#undo').disabled = true;
+      return;
+    }
+
+    const st = compute(log, cfg);
+    const serve = cfg.points >= 7 ? serverOf(st) : -1;
+    const canWin = i => !st.done && setWon(i ? [st.c[0], st.c[1] + 1] : [st.c[0] + 1, st.c[1]], cfg.points);
+    const tag = i => !canWin(i) ? '' : `<div class="point-tag">${st.w[i] === need - 1 ? 'Ponto de partida' : 'Ponto de set'}</div>`;
+    if (!swapped && cfg.points >= 7 && st.w[0] === need - 1 && st.w[1] === need - 1 && Math.max(...st.c) >= Math.floor(cfg.points / 2)) {
+      swapped = true; notice('<i class="bi bi-arrow-left-right"></i> Set decisivo: troquem de lado');
+    }
+    $('#scoreTop').innerHTML = [0, 1].map(i => `<button class="btn btn-outline-light btn-sm flex-fill text-truncate" data-to="${i}"
+      ${toUsed[i] || toEnd || st.done ? 'disabled' : ''}><i class="bi bi-stopwatch"></i> ${toUsed[i] ? 'Time-out usado' : `Time-out · ${esc(names[i])}`}</button>`).join('');
+    $('#setLabel').textContent = `Set ${st.sets.length + 1} • melhor de ${cfg.best_of} • até ${cfg.points}`;
+    $('#score').innerHTML = [0, 1].map(i => {
+      const pop = st.c[i] > prev[i] ? ' score-pop' : '';
+      return `<div class="side">
+      <div class="pname">${esc(names[i])}${serve === i ? '<span class="serve-tag"><i class="bi bi-circle-fill"></i> Saque</span>' : ''}</div>${tag(i)}
+      <div class="my-1">${Array.from({ length: need }, (_, k) => `<span class="set-dot ${k < st.w[i] ? 'on' : ''}${k >= prevW[i] && k < st.w[i] ? ' new' : ''}"></span>`).join('')}</div>
+      <div class="big-score${pop}">${st.c[i]}</div>
+      <button class="btn btn-ph pt-btn mt-2" data-side="${i}" ${st.done ? 'disabled' : ''}>+1</button></div>`;
+    }).join('');
+    prev = [...st.c];
+    prevW = [...st.w];
+    $('#undo').disabled = !log.length;
+    if (st.done) finish();
+  };
+
+  const endTimeout = sound => {
+    toEnd = 0; $('#toLayer').innerHTML = '';
+    if (sound) beep();
+    draw();
+  };
+
+  const clock = () => {
+    const el = (Date.now() - t0) / 1000;
+    if (toEnd) {
+      const left = Math.ceil((toEnd - Date.now()) / 1000);
+      if (left > 0) {
+        if (!$('#toTime')) $('#toLayer').innerHTML = `<div class="to-overlay" role="dialog" aria-label="Time-out"><div class="to-card">
+          <div class="to-title"><i class="bi bi-stopwatch"></i> Time-out</div><div class="to-who">${esc(toWho)}</div>
+          <div class="to-time" id="toTime"></div><div class="to-bar"><span id="toBar"></span></div>
+          <button id="toSkip" class="btn btn-ph btn-go w-100 mt-3"><i class="bi bi-play-fill"></i> Retomar jogo</button></div></div>`;
+        $('#toTime').textContent = fmtDur(left);
+        $('#toTime').classList.toggle('to-low', left <= 10);
+        $('#toBar').style.width = Math.min(100, left / 60 * 100) + '%';
+      } else endTimeout(true);
+    }
+    if (coop) {
+      const left = Math.max(0, cfg.minutes * 60 - el);
+      const timer = $('#coopClock');
+      if (timer) timer.textContent = fmtDur(left);
+      if (left === 0) { beep(); finish(); }
+    } else $('#clock').textContent = fmtDur(el);
+  };
+
+  async function finish() {
+    if (saved) return;
+    saved = true; clearInterval(tick);
+    const duration = Math.round((Date.now() - t0) / 1000);
+    if (coop) {
+      try {
+        const res = await api('/matches', { method: 'POST', body: {
+          mode: 'cooperative', modality: cfg.modality, duration, notes: cfg.notes,
+          player1: cfg.p1, player2: cfg.p2 } });
+        showResult(cfg, res, [], duration);
+      } catch (e) {
+        saved = false;
+        render(`<div class="alert alert-danger">Não foi possível salvar: ${esc(e.message)}</div>
+          <button id="retry" class="btn btn-ph btn-go">Tentar salvar de novo</button>`);
+        $('#retry').addEventListener('click', finish);
+      }
+      return;
+    }
+    const st = compute(log, cfg), sets = [...st.sets];
+    if (st.c[0] + st.c[1] > 0) sets.push([...st.c]);                   // set parcial (treino)
+    if (!sets.length) { go('#/partida'); return; }
+    try {
+      const res = await api('/matches', { method: 'POST', body: {
+        mode: cfg.mode, modality: cfg.modality, points_per_set: cfg.points, best_of: cfg.best_of,
+        duration, sets, notes: cfg.notes, tournament_match_id: cfg.tm, player1: cfg.p1, player2: cfg.p2 } });
+      showResult(cfg, res, sets, duration);
+    } catch (e) {
+      saved = false;
+      render(`<div class="alert alert-danger">Não foi possível salvar: ${esc(e.message)}</div>
+        <button id="retry" class="btn btn-ph btn-go">Tentar salvar de novo</button>`);
+      $('#retry').addEventListener('click', finish);
+    }
+  }
+
+  $('#scoreTop').addEventListener('click', e => {
+    const t = e.target.closest('[data-to]');
+    if (!t) return;
+    const i = +t.dataset.to;
+    if (!toUsed[i] && !toEnd) { toUsed[i] = true; toEnd = Date.now() + 60000; toWho = names[i]; draw(); clock(); }
+  });
+  $('#score').addEventListener('click', e => {
+    const b = e.target.closest('[data-side]');
+    if (!b || Date.now() - lastTap < 250) return;       // evita toque duplo
+    lastTap = Date.now(); log.push(+b.dataset.side); draw();
+  });
+  $('#toLayer').addEventListener('click', e => { if (e.target.closest('#toSkip')) endTimeout(false); });
+  $('#undo').addEventListener('click', () => { if (!coop) { log.pop(); draw(); } });
+  const onKey = e => {                                  // atalhos de teclado (computador)
+    if (coop || toEnd || e.target.matches?.('input,textarea,select') || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === 'ArrowLeft') $('[data-side="0"]')?.click();
+    else if (e.key === 'ArrowRight') $('[data-side="1"]')?.click();
+    else if (e.key === 'Backspace' || e.key.toLowerCase() === 'z') { e.preventDefault(); $('#undo').click(); }
+  };
+  document.addEventListener('keydown', onKey);
+  $('#end').addEventListener('click', () => {
+    if (coop) return finish();
+    if (confirm('Cancelar a partida? O resultado não será salvo.')) go(cfg.tid ? '#/torneio/' + cfg.tid : '#/partida');
+  });
+
+  try { wake = await navigator.wakeLock?.request('screen'); } catch (e) { /* opcional */ }
+  tick = setInterval(clock, 1000);
+  PH.cleanup = () => { clearInterval(tick); wake?.release?.(); document.removeEventListener('keydown', onKey); };
+  draw(); clock();
+}
+
+function tournamentSummary(sum) {
+  const t = sum.tournament, st = sum.standings || [], games = sum.matches || [];
+  const medal = p => p === 1 ? '🥇' : p === 2 ? '🥈' : p === 3 ? '🥉' : '';
+  const main = games.filter(m => !m.third_place);
+  const totalRounds = Math.max(1, ...main.map(m => m.round || 1));
+  const label = m => m.third_place ? 'Disputa de 3º lugar' : t.type === 'round_robin' ? 'Todos contra todos'
+    : roundLabel(m.round, totalRounds);
+  const row = (name, score, win) => `<div class="row-p ${win ? 'win' : ''}"><span>${esc(name)}</span><span>${score ?? ''}</span></div>`;
+  render(`<div class="mx-auto" style="max-width:900px"><div class="card p-4 text-center mb-3">
+      <div class="eyebrow">Torneio encerrado</div><h2 class="ph-title mt-1">${esc(t.name)}</h2>
+      <div class="display-5 fw-bold mb-1">🏆 ${esc(sum.champion_name || st[0]?.name || '')}</div>
+      <div class="text-secondary mb-3">${TYPE[t.type]} • ${fmtDate(t.date)}${t.location ? ` • ${esc(t.location)}` : ''}</div>
+      <div class="alert alert-success mb-3">O evento foi removido da lista automaticamente. Títulos, partidas e ELO continuam salvos.</div>
+      <div class="d-flex gap-2 justify-content-center flex-wrap"><a href="#/torneio" class="btn btn-ph">Voltar aos torneios</a>
+      <a href="#/ranking" class="btn btn-outline-light">Ver ranking</a></div></div>
+    <div class="row g-3"><div class="col-lg-5"><div class="card p-3 h-100"><h5>Classificação final</h5>
+      ${st.map(s => `<div class="d-flex justify-content-between align-items-center border-bottom py-2">
+        <span>${medal(s.place)} ${esc(s.name)}</span><span class="text-secondary">${s.place}º</span></div>`).join('')}</div></div>
+      <div class="col-lg-7"><div class="card p-3 h-100"><h5>Resultados</h5>
+      ${games.map(m => `<div class="bm mb-2"><div class="small text-secondary">${label(m)}</div>
+        ${row(m.player1_name, m.sets_p1, m.winner_id === m.player1_id)}${row(m.player2_name, m.sets_p2, m.winner_id === m.player2_id)}</div>`).join('')
+        || '<span class="text-secondary">Nenhuma partida jogada.</span>'}</div></div></div></div>`);
+}
+
+function showResult(cfg, res, sets, duration) {
+  if (res.tournament_result) return tournamentSummary(res.tournament_result);
+  if (cfg.mode === 'cooperative') {
+    render(`<div class="card p-4 text-center mx-auto" style="max-width:560px">
+      <h2>Treino cooperativo encerrado</h2>
+      <div class="display-2 fw-bold score-tile">${fmtDur(duration)}</div>
+      <div class="text-secondary mb-3">${esc(cfg.p1.name)} <span class="mx-1">com</span> ${esc(cfg.p2.name)}</div>
+      <div class="d-flex gap-2 justify-content-center flex-wrap">
+        <button id="again" class="btn btn-ph">Revanche</button><a class="btn btn-outline-light" href="#/partida">Nova partida</a>
+        <a class="btn btn-outline-light" href="#/ranking">Ranking</a></div></div>`);
+    $('#again')?.addEventListener('click', () => startPlay(cfg));
+    return;
+  }
+  const winner = res.winner ? [cfg.p1.name, cfg.p2.name][res.winner - 1] : null;
+  const eloRow = (n, p) => `<div class="d-flex justify-content-between"><span>${esc(n)}</span><span>${p.before} → <b>${p.after}</b> ${delta(p.delta)}</span></div>`;
+  render(`<div class="card p-4 text-center mx-auto" style="max-width:560px">
+    <h2>${winner ? '🏆 ' + esc(winner) : 'Partida encerrada'}</h2>
+    <div class="display-3 fw-bold">${res.sets_p1} x ${res.sets_p2}</div>
+    <div class="text-secondary mb-3">${sets.map(s => s.join('-')).join(' · ')} • ${fmtDur(duration)}</div>
+    ${res.elo ? `<div class="text-start border-top pt-3 mb-3">${eloRow(cfg.p1.name, res.elo.player1)}${eloRow(cfg.p2.name, res.elo.player2)}</div>` : ''}
+    <div class="d-flex gap-2 justify-content-center flex-wrap">
+      ${cfg.tid ? `<a class="btn btn-ph" href="#/torneio/${cfg.tid}">Voltar ao torneio</a>` :
+        `<button id="again" class="btn btn-ph">Revanche</button><a class="btn btn-outline-light" href="#/partida">Nova partida</a>`}
+      <a class="btn btn-outline-light" href="#/ranking">Ranking</a></div></div>`);
+  $('#again')?.addEventListener('click', () => startPlay(cfg));
+}
+
+
+/* Ranking ELO (lista com busca; /ranking/<id> abre o perfil do atleta). */
+PH.routes.ranking = async id => {
+  if (id) return PH.athleteProfile(id);
+  render(`<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+      <h2 class="ph-title m-0">Ranking</h2>
+      <div class="d-flex gap-2"><input id="q" class="form-control" placeholder="Buscar…">
+      <a class="btn btn-outline-light text-nowrap" href="/api/export/ranking.csv"><i class="bi bi-download"></i> CSV</a></div></div>
+    <div class="card"><div class="table-responsive"><table class="table align-middle mb-0">
+      <thead><tr><th>#</th><th>Atleta</th><th class="text-end">ELO</th><th class="text-end d-none d-sm-table-cell">7 dias</th><th class="text-end">V / D</th></tr></thead>
+      <tbody id="rows"></tbody></table></div></div>`);
+  const load = async () => {
+    const rows = await api('/ranking?q=' + encodeURIComponent($('#q').value));
+    $('#rows').innerHTML = rows.map(r => `<tr class="clickable" onclick="location.hash='#/ranking/${r.id}'">
+      <td class="pos pos-${r.position}">${r.position}</td><td><div class="d-flex align-items-center gap-2">${avatar(r)}<div><div class="fw-semibold">${esc(r.name)}</div>
+      <small class="text-secondary">${esc(r.nickname || '')}</small></div></div></td><td class="text-end fw-bold fs-5">${r.elo}</td>
+      <td class="text-end d-none d-sm-table-cell">${delta(r.elo_change)}</td><td class="text-end">${r.wins} / ${r.losses}</td></tr>`).join('')
+      || '<tr><td colspan="5" class="text-center text-secondary py-4">Nenhum atleta.</td></tr>';
+  };
+  $('#q').addEventListener('input', debounce(load));
+  await load();
+};
+
+
+/* Torneios: lista, criação e chave (eliminatória ou todos contra todos). */
+const TYPE = { knockout: 'Eliminatória', round_robin: 'Todos contra todos' };
+
+async function tournamentList() {
+  const rows = await api('/tournaments');
+  render(`<div class="d-flex justify-content-between align-items-center mb-3"><h2 class="ph-title m-0">Torneios</h2>
+    ${isAdmin() ? `<a href="#/torneio/novo" class="btn btn-ph"><i class="bi bi-plus-lg"></i> Novo torneio</a>` : ''}</div>
+    <div class="row g-3">${rows.map(t => `<div class="col-md-6 col-lg-4"><a class="text-decoration-none" href="#/torneio/${t.id}">
+      <div class="card clickable p-3 h-100"><div class="d-flex justify-content-between"><b class="text-white">${esc(t.name)}</b>
+      <span class="badge ${t.status === 'active' ? 'text-bg-warning' : 'text-bg-success'}">${t.status === 'active' ? 'Em andamento' : 'Finalizado'}</span></div>
+      <div class="small text-secondary mt-1">${TYPE[t.type]} • ${t.players} atletas • ${fmtDate(t.date)}</div>
+      ${t.champion_name ? `<div class="mt-2">🏆 ${esc(t.champion_name)}</div>` : ''}</div></a></div>`).join('')
+      || '<p class="text-secondary">Nenhum torneio ainda.</p>'}</div>`);
+}
+
+async function tournamentForm() {
+  if (!isAdmin()) return adminGate();
+  const ath = await api('/athletes');
+  render(`<h2 class="ph-title mb-3">Novo torneio</h2><div class="card p-3" style="max-width:720px"><div class="row g-3">
+    <div class="col-md-8"><label class="form-label">Nome</label><input id="name" class="form-control" maxlength="120"></div>
+    <div class="col-md-4"><label class="form-label">Data</label><input id="date" type="date" class="form-control" value="${new Date().toISOString().slice(0, 10)}"></div>
+    <div class="col-md-4"><label class="form-label">Chave</label><select id="type" class="form-select">
+      <option value="knockout">Eliminatória</option><option value="round_robin">Todos contra todos</option></select></div>
+    <div class="col-md-4"><label class="form-label">Pontos por set</label><select id="points" class="form-select">
+      ${[3, 5, 7, 9, 11, 15, 21].map(p => `<option ${p === 11 ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
+    <div class="col-md-4"><label class="form-label">Melhor de</label><select id="bo" class="form-select">
+      ${[1, 3, 5, 7].map(p => `<option ${p === 3 ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
+    <div class="col-md-8"><label class="form-label">Local <small class="text-secondary">(opcional)</small></label><input id="loc" class="form-control" maxlength="120"></div>
+    <div class="col-md-4" id="seedBox"><label class="form-label">Sorteio da chave</label><select id="seed" class="form-select">
+      <option value="random">Aleatório</option><option value="elo">Cabeças por ELO</option></select></div>
+    <div class="col-12 d-none" id="thirdBox"><div class="form-check">
+      <input class="form-check-input" type="checkbox" id="third">
+      <label class="form-check-label" for="third">Disputar o 3º lugar</label></div>
+      <div class="hint">Partida extra entre os perdedores das semifinais. Sem ela, os dois semifinalistas derrotados ficam empatados em 3º.</div></div>
+    <div class="col-12"><label class="form-label">Participantes <small class="text-secondary" id="cnt"></small></label>
+      <div class="row g-2">${ath.map(a => `<div class="col-6"><label class="card p-2 flex-row align-items-center gap-2 clickable">
+        <input type="checkbox" class="form-check-input m-0 pick" value="${a.id}">${avatar(a)}<span>${esc(a.name)}</span></label></div>`).join('')
+        || '<p class="text-secondary">Cadastre atletas primeiro.</p>'}</div></div>
+    <div class="col-12 d-flex gap-2"><button id="go" class="btn btn-ph btn-go"><i class="bi bi-check-lg"></i> Criar torneio</button><a href="#/torneio" class="btn btn-outline-secondary">Cancelar</a></div></div></div>`);
+  const syncThird = () => {
+    const available = $('#type').value === 'knockout' && $$('.pick:checked').length >= 4;
+    $('#thirdBox').classList.toggle('d-none', !available);
+    if (!available) $('#third').checked = false;
+    $('#seedBox').classList.toggle('d-none', $('#type').value !== 'knockout');
+  };
+  const count = () => { $('#cnt').textContent = `(${$$('.pick:checked').length} selecionados)`; syncThird(); };
+  $('#type').addEventListener('change', syncThird);
+  $$('.pick').forEach(c => c.addEventListener('change', count)); count();
+  $('#go').addEventListener('click', async () => {
+    try {
+      const r = await api('/tournaments', { method: 'POST', body: { name: $('#name').value, date: $('#date').value, type: $('#type').value,
+        points_per_set: +$('#points').value, best_of: +$('#bo').value, location: $('#loc').value, seeding: $('#seed').value,
+        third_place: $('#third').checked, athlete_ids: $$('.pick:checked').map(c => +c.value) } });
+      go('#/torneio/' + r.id);
+    } catch (e) { toast(e.message); }
+  });
+}
+
+function roundLabel(r, total) {
+  const back = total - r;
+  return back === 0 ? 'Final' : back === 1 ? 'Semifinal' : back === 2 ? 'Quartas de final' : `Rodada ${r}`;
+}
+
+function matchCard(m, tid) {
+  const bye = m.status === 'done' && !m.match_id;
+  const row = (name, score, win) => `<div class="row-p ${win ? 'win' : ''}"><span>${name ? esc(name) : '<i class="text-secondary">A definir</i>'}</span><span>${score ?? ''}</span></div>`;
+  const played = !!m.match_id;
+  const play = m.status === 'waiting' && m.player1_id && m.player2_id
+    ? `<a class="btn btn-ph btn-go btn-sm w-100 mt-1" href="#/jogar/${tid}/${m.id}"><i class="bi bi-play-fill"></i> Jogar</a>` : '';
+  return `<div class="bm">${row(m.p1_name, played ? m.sets_p1 : '', m.winner_id && m.winner_id === m.player1_id)}
+    ${row(bye ? 'Folga' : m.p2_name, played ? m.sets_p2 : '', m.winner_id && m.winner_id === m.player2_id)}${play}</div>`;
+}
+
+function rrTable(players, matches) {
+  const st = Object.fromEntries(players.map(p => [p.id, { name: p.name, w: 0, l: 0, sf: 0, sa: 0 }]));
+  matches.filter(m => m.status === 'done' && st[m.player1_id] && st[m.player2_id]).forEach(m => {
+    st[m.player1_id].sf += m.sets_p1; st[m.player1_id].sa += m.sets_p2;
+    st[m.player2_id].sf += m.sets_p2; st[m.player2_id].sa += m.sets_p1;
+    st[m.winner_id].w++; st[m.winner_id === m.player1_id ? m.player2_id : m.player1_id].l++;
+  });
+  const rows = Object.values(st).sort((a, b) => b.w - a.w || (b.sf - b.sa) - (a.sf - a.sa) || b.sf - a.sf);
+  return `<div class="card mb-3"><table class="table mb-0"><thead><tr><th>#</th><th>Atleta</th><th>V</th><th>D</th><th>Sets</th></tr></thead><tbody>
+    ${rows.map((r, i) => `<tr><td class="pos">${i + 1}</td><td>${esc(r.name)}</td><td>${r.w}</td><td>${r.l}</td><td>${r.sf}-${r.sa}</td></tr>`).join('')}</tbody></table></div>`;
+}
+
+async function tournamentView(id) {
+  const d = await api('/tournaments/' + id), t = d.tournament;
+  const ko = t.type === 'knockout';
+  const third = ko ? d.matches.find(m => m.third_place) : null;
+  let body;
+  if (ko) {
+    body = `<div class="bracket">${Array.from({ length: d.rounds }, (_, i) => i + 1).map(r => `<div class="bracket-col">
+      <div class="text-center text-uppercase small text-secondary fw-bold">${roundLabel(r, d.rounds)}</div>
+      ${d.matches.filter(m => m.round === r && !m.third_place).map(m => matchCard(m, id)).join('')}</div>`).join('')}</div>
+      ${third ? `<div class="mt-1" style="max-width:320px"><div class="text-uppercase small text-secondary fw-bold mb-1">Disputa de 3º lugar</div>${matchCard(third, id)}</div>` : ''}`;
+  } else {
+    body = rrTable(d.players, d.matches) + `<div class="row g-2">${d.matches.map(m => `<div class="col-md-6 col-lg-4">${matchCard(m, id)}</div>`).join('')}</div>`;
+  }
+  const podium = d.standings && ko ? `<div class="card p-3 mb-3"><h5>Classificação final</h5>${d.standings.map(s =>
+    `<div>${s.place === 1 ? '🥇' : s.place === 2 ? '🥈' : s.place === 3 ? '🥉' : s.place + 'º'} ${esc(s.name)}</div>`).join('')}</div>` : '';
+  render(`<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3"><div>
+      <h2 class="ph-title m-0">${esc(t.name)}</h2><div class="text-secondary">${TYPE[t.type]} • melhor de ${t.best_of} • ${t.points_per_set} pts • ${fmtDate(t.date)}${t.location ? ` • <i class="bi bi-geo-alt"></i> ${esc(t.location)}` : ''}${t.type === 'knockout' && t.seeding === 'elo' ? ' • cabeças por ELO' : ''}${third ? ' • com disputa de 3º lugar' : ''}</div></div>
+      <div class="d-flex gap-2 align-items-center"><span class="badge ${t.status === 'active' ? 'text-bg-warning' : 'text-bg-success'}">${t.status === 'active' ? 'Em andamento' : 'Finalizado'}</span>
+      ${isAdmin() ? `<button id="del" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i></button>` : ''}</div></div>
+    ${t.status === 'finished' ? `<div class="alert alert-success">🏆 Campeão: <b>${esc(d.standings[0]?.name || '')}</b></div>` : ''}${podium}${body}`);
+  $('#del')?.addEventListener('click', async () => {
+    if (!confirm('Excluir este torneio? As partidas jogadas e o ELO permanecem.')) return;
+    await api('/tournaments/' + id, { method: 'DELETE' });
+    go('#/torneio');
+  });
+}
+
+PH.routes.torneio = id => id === 'novo' ? tournamentForm() : id ? tournamentView(id) : tournamentList();
+
+
+/* Início, Estudo, Regras e Mesa. */
+PH.routes.inicio = async () => {
+  const [rank, matches, mesa, stats] = await Promise.all([api('/ranking'), api('/matches?limit=5'), api('/mesa'), api('/stats')]);
+  render(`<div class="hero p-4 p-md-5 mb-4 text-white"><span class="ball"></span><span class="ball-shadow"></span>
+      <span class="eyebrow">Plataforma de tênis de mesa</span><h1 class="display-5">Jogo organizado. Resultado que conta.</h1>
+      <p class="lead mb-3">Placar, torneios, ranking ELO, estudo e fila da mesa em um só lugar.</p>
+      <div class="d-flex flex-wrap gap-2">
+        <a href="#/partida" class="btn btn-light btn-lg"><i class="bi bi-play-fill"></i> Nova partida</a>
+        <a href="#/torneio" class="btn btn-outline-light btn-lg"><i class="bi bi-trophy"></i> Torneios</a>
+      </div></div>
+    <div class="row g-3 mb-3">${[['bi-people', 'Atletas', stats.athletes], ['bi-lightning-charge', 'Partidas', stats.matches], ['bi-trophy', 'Torneios', stats.tournaments], ['bi-layers', 'Sets jogados', stats.sets]]
+      .map(([ic, k, v]) => `<div class="col-6 col-lg-3"><div class="card p-3 d-flex flex-row align-items-center gap-3"><i class="bi ${ic} stat-ico"></i>
+      <div><div class="fs-3 fw-bold score-tile" data-count="${v}">${v}</div><div class="small text-secondary">${k}</div></div></div></div>`).join('')}</div>
+    <div class="row g-3"><div class="col-lg-5"><div class="card p-3 h-100"><h5>Top 5</h5>
+      ${rank.slice(0, 5).map(r => `<a class="d-flex align-items-center gap-2 py-1 text-decoration-none text-white" href="#/ranking/${r.id}">
+        <span class="pos">${r.position}</span>${avatar(r)}<span class="flex-grow-1">${esc(r.name)}</span><b>${r.elo}</b></a>`).join('')
+        || '<span class="text-secondary">Cadastre atletas para montar o ranking.</span>'}
+      <a href="#/ranking" class="small mt-2">Ver ranking completo</a></div></div>
+    <div class="col-lg-4"><div class="card p-3 h-100"><h5>Últimas partidas</h5>
+      ${matches.map(m => `<div class="py-1 small">${esc(m.player1_name)} ${m.mode === 'cooperative'
+        ? `<span class="badge text-bg-secondary">Treino</span> <span class="text-secondary">${fmtDur(m.duration)}</span>`
+        : `<b>${m.sets_p1} x ${m.sets_p2}</b>`} ${esc(m.player2_name)}</div>`).join('')
+        || '<span class="text-secondary">Nenhuma partida ainda.</span>'}</div></div>
+    <div class="col-lg-3"><a href="#/mesa" class="text-decoration-none"><div class="card p-3 h-100 clickable"><h5 class="text-white">Mesa</h5>
+      <div class="fs-4 fw-bold ${mesa.occupied ? 'text-danger' : 'text-success'}">${mesa.occupied ? 'Ocupada' : 'Livre'}</div>
+      <div class="small text-secondary">${mesa.queue.length} na fila</div></div></a></div></div>`);
+};
+
+PH.routes.estudo = async () => {
+  render(`<h2 class="ph-title mb-3">Estudo</h2><div class="row g-2 mb-3">
+    <div class="col-6 col-md-3"><select id="level" class="form-select"><option value="">Todos os níveis</option>
+      ${Object.entries(LEVEL).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></div>
+    <div class="col-6 col-md-3"><select id="cat" class="form-select"><option value="">Todas as categorias</option>
+      ${['fundamentos', 'ataque', 'defesa', 'saque', 'tática'].map(c => `<option>${c}</option>`).join('')}</select></div></div>
+    <div id="list" class="row g-3"></div>`);
+  const load = async () => {
+    const items = await api(`/estudo?level=${$('#level').value}&category=${encodeURIComponent($('#cat').value)}`);
+    $('#list').innerHTML = items.map(i => `<div class="col-md-6 col-lg-4"><div class="card p-3 h-100">
+      <div class="mb-2"><span class="badge text-bg-info">${LEVEL[i.level]}</span> <span class="badge text-bg-secondary">${esc(i.category)}</span></div>
+      <h5>${esc(i.title)}</h5><p class="text-secondary small flex-grow-1">${esc(i.description)}</p>
+      <a class="btn btn-outline-light btn-sm align-self-start" target="_blank" rel="noopener" href="${esc(i.url)}"><i class="bi bi-play-circle"></i> Ver vídeos</a></div></div>`).join('')
+      || '<p class="text-secondary">Nada encontrado.</p>';
+  };
+  $$('#level, #cat').forEach(e => e.addEventListener('change', load));
+  await load();
+};
+
+const CAT = { pontuacao: 'Pontuação', saque: 'Saque', jogo: 'Jogo', duplas: 'Duplas', equipamento: 'Equipamento', arbitragem: 'Arbitragem', convivencia: 'Convivência', sistema: 'Sistema' };
+
+PH.routes.regras = async () => {
+  render(`<h2 class="ph-title mb-3">Regras</h2><div class="row g-2 mb-3">
+    <div class="col-md-6"><input id="q" class="form-control" placeholder="Buscar regra…"></div>
+    <div class="col-md-3"><select id="cat" class="form-select"><option value="">Todas as categorias</option>
+      ${Object.entries(CAT).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></div></div>
+    <ul class="nav nav-pills mb-3"><li class="nav-item"><button class="nav-link active" data-tab="ittf">Oficiais (ITTF)</button></li>
+      <li class="nav-item"><button class="nav-link" data-tab="local">Regras da mesa local</button></li>
+      <li class="nav-item"><button class="nav-link" data-tab="sistema">Regras do sistema</button></li></ul><div id="list"></div>`);
+  let tab = 'ittf', data = { ittf: [], local: [], sistema: [] };
+  const draw = () => {
+    $('#list').innerHTML = `<div class="accordion">${data[tab].map(r => `<div class="accordion-item"><h2 class="accordion-header">
+      <button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#r${tab}${r.id}">${esc(r.title)}
+      <span class="badge text-bg-secondary ms-2">${esc(CAT[r.category] || r.category)}</span></button></h2>
+      <div id="r${tab}${r.id}" class="accordion-collapse collapse"><div class="accordion-body">${esc(r.text)}
+      <div class="small text-secondary mt-2">${esc(r.source)}</div></div></div></div>`).join('') || '<p class="text-secondary">Nenhuma regra encontrada.</p>'}</div>`;
+  };
+  const load = async () => { data = await api(`/regras?q=${encodeURIComponent($('#q').value)}&category=${encodeURIComponent($('#cat').value)}`); draw(); };
+  $('#q').addEventListener('input', debounce(load));
+  $('#cat').addEventListener('change', load);
+  $$('[data-tab]').forEach(b => b.addEventListener('click', () => {
+    tab = b.dataset.tab; $$('[data-tab]').forEach(x => x.classList.toggle('active', x === b)); draw();
+  }));
+  await load();
+};
+
+PH.routes.historico = async () => {
+  render(`<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3"><h2 class="ph-title m-0">Histórico</h2>
+    <div class="d-flex gap-2"><input id="q" class="form-control" placeholder="Buscar jogador…">
+    <a class="btn btn-outline-light text-nowrap" href="/api/export/matches.csv"><i class="bi bi-download"></i> CSV</a></div></div><div id="list"></div>`);
+  const load = async () => {
+    const rows = await api('/matches?limit=100&q=' + encodeURIComponent($('#q').value));
+    $('#list').innerHTML = rows.length ? `<div class="card"><div class="table-responsive"><table class="table align-middle mb-0">
+      <thead><tr><th>Data</th><th>Partida</th><th class="text-center">Sets</th><th class="d-none d-md-table-cell">Placar</th><th class="d-none d-lg-table-cell">Detalhes</th></tr></thead><tbody>
+      ${rows.map(m => `<tr><td class="small text-secondary text-nowrap">${new Date(m.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</td>
+        <td><span class="${m.winner === 1 ? 'fw-bold' : ''}">${esc(m.player1_name)}</span> <span class="text-secondary">vs</span> <span class="${m.winner === 2 ? 'fw-bold' : ''}">${esc(m.player2_name)}</span></td>
+        <td class="text-center fw-bold score-tile">${m.mode === 'cooperative' ? `<span class="text-secondary fs-6">${fmtDur(m.duration)}</span>` : `${m.sets_p1} x ${m.sets_p2}`}</td>
+        <td class="d-none d-md-table-cell small text-secondary">${m.mode === 'cooperative' ? 'Somente tempo' : (m.sets_json || []).map(s => s.join('-')).join(' · ')}</td>
+        <td class="d-none d-lg-table-cell small"><span class="badge text-bg-secondary">${m.mode === 'cooperative' ? 'Treino' : 'Competitivo'}</span>
+          ${m.modality === 'doubles' ? '<span class="badge text-bg-secondary">Duplas</span>' : ''}
+          ${m.tournament_name ? `<span class="badge text-bg-info">${esc(m.tournament_name)}</span>` : ''}
+          <span class="text-secondary">${fmtDur(m.duration)}</span>${m.notes ? ` <span class="text-secondary" title="${esc(m.notes)}"><i class="bi bi-chat-left-text"></i></span>` : ''}</td></tr>`).join('')}
+      </tbody></table></div></div>` : '<p class="text-secondary">Nenhuma partida registrada.</p>';
+  };
+  $('#q').addEventListener('input', debounce(load));
+  await load();
+};
+
+PH.routes.mesa = async () => {
+  render(`<h2 class="ph-title mb-3">Mesa</h2><div class="row g-3"><div class="col-lg-6"><div id="state" class="card p-4 mb-3"></div>
+    <div class="card p-3"><label class="form-label">Seu nome</label><input id="who" class="form-control mb-2" maxlength="100">
+    <div class="d-flex gap-2 flex-wrap"><input id="min" type="number" min="1" max="120" value="15" class="form-control" style="width:90px" title="Minutos">
+    <button id="occupy" class="btn btn-ph btn-go">Ocupar mesa</button><button id="join" class="btn btn-outline-light">Entrar na fila</button></div></div></div>
+    <div class="col-lg-6"><div class="card p-3"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="m-0">Fila</h5>
+    <button id="next" class="btn btn-outline-info btn-sm">Chamar próximo</button></div><div id="queue"></div></div></div></div>`);
+  $('#who').value = localStorage.getItem('ph_name') || '';
+  let st = null, left = 0;
+  const draw = () => {
+    $('#state').innerHTML = st.occupied
+      ? `<div class="status-busy"><i class="dot"></i> Ocupada</div><div class="fs-4">${esc(st.occupied_by)}</div>
+         <div class="display-5 fw-bold" id="left">${fmtDur(left)}</div><button id="release" class="btn btn-outline-light mt-2 align-self-start">Liberar mesa</button>`
+      : '<div class="status-free"><i class="dot"></i> Mesa livre</div>';
+    $('#queue').innerHTML = st.queue.map((p, i) => `<div class="d-flex justify-content-between align-items-center py-1 ${i === 0 ? 'fw-bold text-info' : ''}">
+      <span>${i + 1}. ${esc(p.name)} ${i === 0 ? '<span class="badge text-bg-info">próximo</span>' : ''}</span>
+      <button class="btn btn-sm btn-outline-danger" data-leave="${p.id}"><i class="bi bi-x"></i></button></div>`).join('') || '<span class="text-secondary">Fila vazia.</span>';
+  };
+  const load = async () => { st = await api('/mesa'); left = st.remaining_seconds || 0; draw(); };
+  const act = async (path, body, method = 'POST') => {
+    try { st = await api(path, { method, body }); left = st.remaining_seconds || 0; draw(); } catch (e) { toast(e.message); }
+  };
+  const name = () => { const n = $('#who').value.trim(); localStorage.setItem('ph_name', n); return n; };
+  $('#occupy').addEventListener('click', () => act('/mesa/occupy', { name: name(), minutes: +$('#min').value }));
+  $('#join').addEventListener('click', () => act('/mesa/queue', { name: name() }));
+  $('#next').addEventListener('click', () => act('/mesa/next', {}));
+  $('#state').addEventListener('click', e => { if (e.target.closest('#release')) act('/mesa/release', {}); });
+  $('#queue').addEventListener('click', e => {
+    const l = e.target.closest('[data-leave]'); if (l) act('/mesa/queue/' + l.dataset.leave, undefined, 'DELETE');
+  });
+  const poll = setInterval(load, 5000);
+  const clock = setInterval(() => {                       // contagem regressiva local entre as atualizações
+    if (st?.occupied && left > 0) { left--; const el = $('#left'); if (el) el.textContent = fmtDur(left); if (left === 0) beep(); }
+  }, 1000);
+  PH.cleanup = () => { clearInterval(poll); clearInterval(clock); };
+  await load();
+};
+
+  </script>
+</body>
+</html>

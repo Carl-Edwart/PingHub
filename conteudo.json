@@ -1,0 +1,584 @@
+{
+ "tecnicas": [
+  {
+   "id": 1,
+   "title": "Empunhadura clássica (shakehand)",
+   "level": "iniciante",
+   "category": "fundamentos",
+   "description": "Como segurar a raquete de forma firme e relaxada, com o dedo indicador apoiado na borracha de backhand.",
+   "type": "video",
+   "url": "https://www.youtube.com/results?search_query=table+tennis+shakehand+grip+tutorial"
+  },
+  {
+   "id": 2,
+   "title": "Posição base e movimentação",
+   "level": "iniciante",
+   "category": "fundamentos",
+   "description": "Joelhos flexionados, peso na ponta dos pés e passos curtos laterais para chegar a todas as bolas.",
+   "type": "video",
+   "url": "https://www.youtube.com/results?search_query=table+tennis+ready+position+footwork"
+  },
+  {
+   "id": 3,
+   "title": "Forehand drive",
+   "level": "iniciante",
+   "category": "ataque",
+   "description": "Golpe básico de ataque: rotação do tronco, raquete da altura do quadril até a testa e contato à frente do corpo.",
+   "type": "video",
+   "url": "https://www.youtube.com/results?search_query=table+tennis+forehand+drive+technique"
+  },
+  {
+   "id": 4,
+   "title": "Backhand drive",
+   "level": "iniciante",
+   "category": "ataque",
+   "description": "Golpe de ataque do lado esquerdo (destros), com cotovelo à frente e movimento curto do antebraço.",
+   "type": "video",
+   "url": "https://www.youtube.com/results?search_query=table+tennis+backhand+drive+technique"
+  },
+  {
+   "id": 5,
+   "title": "Saque básico",
+   "level": "iniciante",
+   "category": "saque",
+   "description": "Lançamento de pelo menos 16 cm, bola na palma aberta e contato atrás da linha de fundo da mesa.",
+   "type": "video",
+   "url": "https://www.youtube.com/results?search_query=table+tennis+basic+serve+tutorial"
+  },
+  {
+   "id": 6,
+   "title": "Push (empurrada)",
+   "level": "intermediario",
+   "category": "defesa",
+   "description": "Golpe de controle contra bolas com efeito de backspin, mantendo a bola baixa e curta.",
+   "type": "video",
+   "url": "https://www.youtube.com/results?search_query=table+tennis+push+technique"
+  },
+  {
+   "id": 7,
+   "title": "Topspin de forehand",
+   "level": "intermediario",
+   "category": "ataque",
+   "description": "Movimento de baixo para cima com raquete fechada para gerar rotação para frente e bola mais segura sobre a rede.",
+   "type": "video",
+   "url": "https://www.youtube.com/results?search_query=table+tennis+forehand+topspin"
+  },
+  {
+   "id": 8,
+   "title": "Bloqueio ativo",
+   "level": "intermediario",
+   "category": "defesa",
+   "description": "Devolução curta logo após o quique, usando a velocidade do adversário e direcionando com o ângulo da raquete.",
+   "type": "video",
+   "url": "https://www.youtube.com/results?search_query=table+tennis+blocking+technique"
+  },
+  {
+   "id": 9,
+   "title": "Saques com efeito lateral",
+   "level": "intermediario",
+   "category": "saque",
+   "description": "Variação de rotação (lateral, backspin e topspin) escondendo o contato para dificultar a recepção.",
+   "type": "video",
+   "url": "https://www.youtube.com/results?search_query=table+tennis+side+spin+serve"
+  },
+  {
+   "id": 10,
+   "title": "Flick (ataque na bola curta)",
+   "level": "avancado",
+   "category": "ataque",
+   "description": "Ataque rápido com o punho sobre bolas curtas, tomando a iniciativa na recepção do saque.",
+   "type": "video",
+   "url": "https://www.youtube.com/results?search_query=table+tennis+flick+tutorial"
+  },
+  {
+   "id": 11,
+   "title": "Contra-ataque (counter-topspin)",
+   "level": "avancado",
+   "category": "ataque",
+   "description": "Responder ao topspin do adversário com outro topspin, usando a rotação recebida a favor.",
+   "type": "video",
+   "url": "https://www.youtube.com/results?search_query=table+tennis+counter+topspin"
+  },
+  {
+   "id": 12,
+   "title": "Táticas de recepção e 3ª bola",
+   "level": "avancado",
+   "category": "tática",
+   "description": "Planejar saque, recepção e terceira bola como sequência e variar direção, profundidade e efeito.",
+   "type": "video",
+   "url": "https://www.youtube.com/results?search_query=table+tennis+third+ball+attack+tactics"
+  },
+  {
+   "id": 13,
+   "title": "Push (corte curto)",
+   "level": "iniciante",
+   "category": "fundamentos",
+   "description": "Devolução de bolas curtas com a raquete aberta, perto da rede, mantendo a bola baixa e com pouco efeito.",
+   "type": "video",
+   "url": "https://www.youtube.com/results?search_query=table+tennis+push+technique+beginner"
+  },
+  {
+   "id": 14,
+   "title": "Topspin de forehand",
+   "level": "intermediario",
+   "category": "ataque",
+   "description": "Gesto de baixo para cima e para a frente, com a raquete fechada, para gerar efeito de rotação para frente.",
+   "type": "video",
+   "url": "https://www.youtube.com/results?search_query=table+tennis+forehand+topspin+tutorial"
+  },
+  {
+   "id": 15,
+   "title": "Bloqueio ativo",
+   "level": "intermediario",
+   "category": "defesa",
+   "description": "Raquete firme e levemente fechada logo após o quique, usando a velocidade do adversário e variando a colocação.",
+   "type": "video",
+   "url": "https://www.youtube.com/results?search_query=table+tennis+active+block+tutorial"
+  },
+  {
+   "id": 16,
+   "title": "Chop (corte defensivo)",
+   "level": "intermediario",
+   "category": "defesa",
+   "description": "Corte longo de baixo para cima e para a frente, com a bola baixa e rotação para trás, para devolver ataques.",
+   "type": "video",
+   "url": "https://www.youtube.com/results?search_query=table+tennis+chop+defense+tutorial"
+  },
+  {
+   "id": 17,
+   "title": "Saque com efeito lateral",
+   "level": "intermediario",
+   "category": "saque",
+   "description": "Variação de contato e de direção do toque para gerar efeito lateral e dificultar a devolução.",
+   "type": "video",
+   "url": "https://www.youtube.com/results?search_query=table+tennis+side+spin+serve+tutorial"
+  },
+  {
+   "id": 18,
+   "title": "Flick na bola curta",
+   "level": "avancado",
+   "category": "ataque",
+   "description": "Ataque rápido de punho sobre bolas curtas sobre a rede, tirando o tempo do adversário.",
+   "type": "video",
+   "url": "https://www.youtube.com/results?search_query=table+tennis+flick+tutorial"
+  },
+  {
+   "id": 19,
+   "title": "Leitura de efeito",
+   "level": "avancado",
+   "category": "tática",
+   "description": "Observe o movimento da raquete e o ponto de contato do adversário para antecipar o efeito e a trajetória.",
+   "type": "video",
+   "url": "https://www.youtube.com/results?search_query=table+tennis+reading+spin+tutorial"
+  },
+  {
+   "id": 20,
+   "title": "Variação de ritmo e colocação",
+   "level": "intermediario",
+   "category": "tática",
+   "description": "Alterne velocidade, efeito e direção (cotovelo, meio e lados) para quebrar o ritmo do adversário.",
+   "type": "video",
+   "url": "https://www.youtube.com/results?search_query=table+tennis+tactics+placement"
+  },
+  {
+   "id": 21,
+   "title": "Condicionamento e mobilidade",
+   "level": "iniciante",
+   "category": "fundamentos",
+   "description": "Exercícios de pernas, core e coordenação para melhorar a movimentação e prevenir lesões.",
+   "type": "video",
+   "url": "https://www.youtube.com/results?search_query=table+tennis+footwork+training"
+  }
+ ],
+ "regras_ittf": [
+  {
+   "id": 1,
+   "category": "pontuacao",
+   "title": "Pontuação do set",
+   "text": "Um set vai até 11 pontos, com vantagem mínima de 2. A cada rali é marcado um ponto (rally point).",
+   "source": "Resumo das regras ITTF — confira o regulamento oficial"
+  },
+  {
+   "id": 2,
+   "category": "pontuacao",
+   "title": "Partida",
+   "text": "Normalmente é disputada em melhor de 5 ou 7 sets (3 ou 4 sets para vencer).",
+   "source": "Resumo das regras ITTF — confira o regulamento oficial"
+  },
+  {
+   "id": 3,
+   "category": "saque",
+   "title": "Troca de saque",
+   "text": "O saque muda a cada 2 pontos. A partir de 10-10 (ou quando os dois chegam a 10), muda a cada ponto.",
+   "source": "Resumo das regras ITTF — confira o regulamento oficial"
+  },
+  {
+   "id": 4,
+   "category": "saque",
+   "title": "Execução do saque",
+   "text": "A bola parte da palma aberta e parada, é lançada quase na vertical a pelo menos 16 cm e golpeada atrás da linha de fundo e acima do nível da mesa.",
+   "source": "Resumo das regras ITTF — confira o regulamento oficial"
+  },
+  {
+   "id": 5,
+   "category": "saque",
+   "title": "Saque em duplas",
+   "text": "O saque deve ir da metade direita da mesa do sacador para a metade direita do receptor (diagonal).",
+   "source": "Resumo das regras ITTF — confira o regulamento oficial"
+  },
+  {
+   "id": 6,
+   "category": "saque",
+   "title": "Let",
+   "text": "Se a bola toca a rede no saque e passa para o campo correto, o ponto é repetido.",
+   "source": "Resumo das regras ITTF — confira o regulamento oficial"
+  },
+  {
+   "id": 7,
+   "category": "jogo",
+   "title": "Mudança de lado",
+   "text": "Os jogadores trocam de lado a cada set e, no último set, quando um deles chega a 5 pontos.",
+   "source": "Resumo das regras ITTF — confira o regulamento oficial"
+  },
+  {
+   "id": 8,
+   "category": "jogo",
+   "title": "Intervalos e tempo",
+   "text": "Há intervalo de até 1 minuto entre os sets e cada jogador ou dupla pode pedir 1 tempo de 1 minuto por partida.",
+   "source": "Resumo das regras ITTF — confira o regulamento oficial"
+  },
+  {
+   "id": 9,
+   "category": "jogo",
+   "title": "Sorteio inicial",
+   "text": "O vencedor do sorteio escolhe sacar, receber ou o lado da mesa; o adversário escolhe entre as opções restantes.",
+   "source": "Resumo das regras ITTF — confira o regulamento oficial"
+  },
+  {
+   "id": 10,
+   "category": "jogo",
+   "title": "Duplas",
+   "text": "Os parceiros devem rebater alternadamente. A ordem de saque e recepção muda a cada set.",
+   "source": "Resumo das regras ITTF — confira o regulamento oficial"
+  },
+  {
+   "id": 11,
+   "category": "equipamento",
+   "title": "Mesa",
+   "text": "Mede 2,74 m de comprimento, 1,525 m de largura e 76 cm de altura. A rede tem 15,25 cm de altura.",
+   "source": "Resumo das regras ITTF — confira o regulamento oficial"
+  },
+  {
+   "id": 12,
+   "category": "equipamento",
+   "title": "Bola",
+   "text": "Plástica, branca ou laranja, com 40 mm de diâmetro e cerca de 2,7 g.",
+   "source": "Resumo das regras ITTF — confira o regulamento oficial"
+  },
+  {
+   "id": 13,
+   "category": "equipamento",
+   "title": "Raquete",
+   "text": "Os revestimentos devem ser vermelho de um lado e preto do outro.",
+   "source": "Resumo das regras ITTF — confira o regulamento oficial"
+  },
+  {
+   "id": 14,
+   "category": "saque",
+   "title": "Lançamento da bola",
+   "text": "A bola deve repousar na palma aberta e parada e ser lançada quase na vertical, subindo pelo menos 16 cm e sem efeito. Só então é golpeada, já na descida.",
+   "source": "Resumo das regras ITTF — confira o regulamento oficial"
+  },
+  {
+   "id": 15,
+   "category": "saque",
+   "title": "Saque escondido não vale",
+   "text": "Do início do lançamento até o golpe, a bola deve ficar acima do nível da mesa e atrás da linha de fundo. O sacador não pode esconder a bola do recebedor com corpo, braço ou roupa.",
+   "source": "Resumo das regras ITTF — confira o regulamento oficial"
+  },
+  {
+   "id": 16,
+   "category": "saque",
+   "title": "Trajetória do saque",
+   "text": "A bola quica primeiro na metade do sacador, passa sobre ou ao redor da rede e toca a metade do recebedor. Em simples vale qualquer ponto da mesa adversária; em duplas, só na diagonal (direita para direita).",
+   "source": "Resumo das regras ITTF — confira o regulamento oficial"
+  },
+  {
+   "id": 17,
+   "category": "saque",
+   "title": "Let (repetir o ponto)",
+   "text": "Se o saque toca a rede mas, fora isso, é correto, ele é repetido, sem limite de repetições. O ponto também é repetido se o recebedor não estava pronto e não tentou devolver.",
+   "source": "Resumo das regras ITTF — confira o regulamento oficial"
+  },
+  {
+   "id": 18,
+   "category": "jogo",
+   "title": "Devolução correta",
+   "text": "A bola deve ser devolvida depois de um único quique do seu lado, passando sobre ou ao redor da rede e tocando a metade do adversário, diretamente ou após tocar a rede.",
+   "source": "Resumo das regras ITTF — confira o regulamento oficial"
+  },
+  {
+   "id": 19,
+   "category": "jogo",
+   "title": "Voleio",
+   "text": "Rebater a bola no ar, antes de ela quicar na sua metade da mesa, é voleio e dá o ponto ao adversário.",
+   "source": "Resumo das regras ITTF — confira o regulamento oficial"
+  },
+  {
+   "id": 20,
+   "category": "jogo",
+   "title": "Mão livre, mesa e rede",
+   "text": "Tocar a mesa com a mão livre durante o ponto, mover a mesa ou tocar a rede com corpo, roupa ou raquete dá o ponto ao adversário. Bater na bola com a mão da raquete abaixo do pulso vale como raquete.",
+   "source": "Resumo das regras ITTF — confira o regulamento oficial"
+  },
+  {
+   "id": 21,
+   "category": "jogo",
+   "title": "Troca de lado",
+   "text": "Trocam-se os lados ao fim de cada set. No set decisivo, trocam-se também quando o primeiro jogador chegar a 5 pontos (em sets de 11).",
+   "source": "Resumo das regras ITTF — confira o regulamento oficial"
+  },
+  {
+   "id": 22,
+   "category": "jogo",
+   "title": "Time-out e intervalos",
+   "text": "Cada jogador ou dupla pode pedir um time-out de até 1 minuto por partida. Entre os sets, o intervalo é de até 1 minuto.",
+   "source": "Resumo das regras ITTF — confira o regulamento oficial"
+  },
+  {
+   "id": 23,
+   "category": "jogo",
+   "title": "Aquecimento",
+   "text": "Antes da partida os jogadores têm direito a até 2 minutos de aquecimento na mesa.",
+   "source": "Resumo das regras ITTF — confira o regulamento oficial"
+  },
+  {
+   "id": 24,
+   "category": "jogo",
+   "title": "Sistema de aceleração (expedite)",
+   "text": "Se o set não terminar em 10 minutos (e não houver ao menos 9 pontos para ambos), o saque passa a alternar a cada ponto e, se o recebedor fizer 13 devoluções corretas, ganha o ponto.",
+   "source": "Resumo das regras ITTF — confira o regulamento oficial"
+  },
+  {
+   "id": 25,
+   "category": "duplas",
+   "title": "Ordem de saque nas duplas",
+   "text": "A dupla com o primeiro saque escolhe quem saca e a outra escolhe quem recebe. Depois a ordem segue: sacador, recebedor, parceiro do sacador, parceiro do recebedor.",
+   "source": "Resumo das regras ITTF — confira o regulamento oficial"
+  },
+  {
+   "id": 26,
+   "category": "duplas",
+   "title": "Rebater alternadamente",
+   "text": "Em duplas, os parceiros devem rebater a bola de forma alternada, sempre.",
+   "source": "Resumo das regras ITTF — confira o regulamento oficial"
+  },
+  {
+   "id": 27,
+   "category": "duplas",
+   "title": "Set decisivo em duplas",
+   "text": "No set decisivo, quando uma dupla chega a 5 pontos, a dupla que recebe inverte a ordem de recebimento.",
+   "source": "Resumo das regras ITTF — confira o regulamento oficial"
+  },
+  {
+   "id": 28,
+   "category": "equipamento",
+   "title": "Mesa e rede",
+   "text": "A mesa tem 2,74 m de comprimento, 1,525 m de largura e 76 cm de altura. A rede fica a 15,25 cm acima da mesa.",
+   "source": "Resumo das regras ITTF — confira o regulamento oficial"
+  },
+  {
+   "id": 29,
+   "category": "equipamento",
+   "title": "A bola",
+   "text": "Plástica, com 40 mm de diâmetro e 2,7 g, branca ou laranja e fosca.",
+   "source": "Resumo das regras ITTF — confira o regulamento oficial"
+  },
+  {
+   "id": 30,
+   "category": "equipamento",
+   "title": "A raquete",
+   "text": "A madeira deve ter pelo menos 85% de madeira natural. Um lado da cobertura é vermelho e o outro, preto. A espessura da cobertura (borracha com esponja) não pode passar de 4 mm.",
+   "source": "Resumo das regras ITTF — confira o regulamento oficial"
+  },
+  {
+   "id": 31,
+   "category": "equipamento",
+   "title": "Uniforme",
+   "text": "A roupa principal deve ter cor bem diferente da bola, para que ela não se confunda com o jogador.",
+   "source": "Resumo das regras ITTF — confira o regulamento oficial"
+  },
+  {
+   "id": 32,
+   "category": "arbitragem",
+   "title": "Orientação do técnico",
+   "text": "O técnico só pode orientar o jogador entre os sets e durante os time-outs, nunca durante o ponto.",
+   "source": "Resumo das regras ITTF — confira o regulamento oficial"
+  },
+  {
+   "id": 33,
+   "category": "arbitragem",
+   "title": "Advertências",
+   "text": "O árbitro pode advertir (cartão amarelo) por mau comportamento e, se a conduta continuar, aplicar penalidades em pontos.",
+   "source": "Resumo das regras ITTF — confira o regulamento oficial"
+  },
+  {
+   "id": 34,
+   "category": "arbitragem",
+   "title": "Anúncio do placar",
+   "text": "O árbitro anuncia o placar sempre com os pontos do sacador primeiro.",
+   "source": "Resumo das regras ITTF — confira o regulamento oficial"
+  }
+ ],
+ "regras_local": [
+  {
+   "id": 1,
+   "category": "convivencia",
+   "title": "Quem perde sai",
+   "text": "Em partidas de fila, quem perde cede a mesa para o próximo da fila.",
+   "source": "Regra local (exemplo — edite data/regras_mesa_local.json)"
+  },
+  {
+   "id": 2,
+   "category": "convivencia",
+   "title": "Tempo máximo",
+   "text": "Cada dupla ou jogador pode ficar até 15 minutos na mesa quando houver fila.",
+   "source": "Regra local (exemplo — edite data/regras_mesa_local.json)"
+  },
+  {
+   "id": 3,
+   "category": "convivencia",
+   "title": "Cuidado com a mesa",
+   "text": "Não sentar na mesa e guardar a rede e as bolas ao final.",
+   "source": "Regra local (exemplo — edite data/regras_mesa_local.json)"
+  },
+  {
+   "id": 4,
+   "category": "jogo",
+   "title": "Formato padrão",
+   "text": "Partidas informais em 1 set de 11 pontos, sem necessidade de 2 de vantagem.",
+   "source": "Regra local (exemplo — edite data/regras_mesa_local.json)"
+  },
+  {
+   "id": 5,
+   "category": "convivencia",
+   "title": "Fila por ordem de chegada",
+   "text": "A fila é por ordem de entrada. Quem sai e quer jogar de novo volta para o fim da fila.",
+   "source": "Regra local (exemplo — edite conteudo.json)"
+  },
+  {
+   "id": 6,
+   "category": "convivencia",
+   "title": "Sorteio do saque",
+   "text": "O primeiro saque é decidido no par ou ímpar ou escondendo a bola em uma das mãos.",
+   "source": "Regra local (exemplo — edite conteudo.json)"
+  },
+  {
+   "id": 7,
+   "category": "jogo",
+   "title": "Partidas rápidas com fila",
+   "text": "Com 3 ou mais pessoas esperando, as partidas avulsas são de 1 set de 3 pontos.",
+   "source": "Regra local (exemplo — edite conteudo.json)"
+  },
+  {
+   "id": 8,
+   "category": "convivencia",
+   "title": "Cuidado com a mesa",
+   "text": "Não sente na mesa nem apoie objetos nela. Quem derrubou a bola busca a bola.",
+   "source": "Regra local (exemplo — edite conteudo.json)"
+  },
+  {
+   "id": 9,
+   "category": "equipamento",
+   "title": "Raquetes emprestadas",
+   "text": "Peça licença antes de usar a raquete de outra pessoa e devolva limpa.",
+   "source": "Regra local (exemplo — edite conteudo.json)"
+  },
+  {
+   "id": 10,
+   "category": "convivencia",
+   "title": "Revanche",
+   "text": "Quem perde só pode pedir revanche quando a fila estiver vazia.",
+   "source": "Regra local (exemplo — edite conteudo.json)"
+  }
+ ],
+ "regras_sistema": [
+  {
+   "id": 1,
+   "category": "sistema",
+   "title": "ELO inicial e variação",
+   "text": "Todo atleta começa com ELO 1000. Partidas avulsas usam K=32 e partidas de torneio usam K=16, então o torneio mexe menos no ranking.",
+   "source": "Regra do PingHub"
+  },
+  {
+   "id": 2,
+   "category": "sistema",
+   "title": "Quando o ELO muda",
+   "text": "Só em partidas competitivas individuais entre dois atletas cadastrados. Treinos, duplas e adversários anônimos não alteram o ELO (vitórias e derrotas contra anônimos continuam contando).",
+   "source": "Regra do PingHub"
+  },
+  {
+   "id": 3,
+   "category": "sistema",
+   "title": "Validação do placar",
+   "text": "Em partida competitiva, cada set precisa terminar em N pontos (com 2 de vantagem a partir de 11) e a partida só é salva quando alguém atinge o número de sets necessário.",
+   "source": "Regra do PingHub"
+  },
+  {
+   "id": 4,
+   "category": "sistema",
+   "title": "Saque e primeiro sacador",
+   "text": "O saque troca a cada 2 pontos, e a cada ponto depois de 10-10. Você escolhe quem saca primeiro (padrão: Jogador 1) e o saque inicial alterna a cada set. O indicador aparece nas partidas de 7 ou mais pontos.",
+   "source": "Regra do PingHub"
+  },
+  {
+   "id": 5,
+   "category": "sistema",
+   "title": "Pontos de set e de partida",
+   "text": "O placar avisa quando um jogador está a um ponto de fechar o set ou a partida.",
+   "source": "Regra do PingHub"
+  },
+  {
+   "id": 6,
+   "category": "sistema",
+   "title": "Time-out e troca de lado",
+   "text": "Cada jogador tem 1 time-out de 60 segundos por partida competitiva, com os botões no topo do placar. No set decisivo (sets de 7+ pontos) o placar avisa a troca de lado na metade do set.",
+   "source": "Regra do PingHub"
+  },
+  {
+   "id": 7,
+   "category": "sistema",
+   "title": "Chaves de torneio",
+   "text": "Eliminatória: com número ímpar de atletas há folgas (byes). O sorteio pode ser aleatório ou por cabeças de chave segundo o ELO (os melhores ficam em lados opostos e recebem as folgas). Todos contra todos: critério por vitórias, saldo de sets e sets ganhos.",
+   "source": "Regra do PingHub"
+  },
+  {
+   "id": 8,
+   "category": "sistema",
+   "title": "Pódio e títulos",
+   "text": "Na eliminatória sem disputa de 3º lugar há campeão, vice e dois terceiros (os semifinalistas derrotados). Com a disputa ativada (4+ atletas), o vencedor da partida extra fica em 3º e o perdedor em 4º. No todos contra todos, a classificação define 1º, 2º, 3º... Os títulos ficam salvos no perfil mesmo se o torneio for excluído.",
+   "source": "Regra do PingHub"
+  },
+  {
+   "id": 9,
+   "category": "sistema",
+   "title": "Mesa",
+   "text": "A ocupação padrão é de 15 minutos (1 a 120). Chamar o próximo tira o primeiro da fila e o coloca na mesa por 15 minutos.",
+   "source": "Regra do PingHub"
+  },
+  {
+   "id": 10,
+   "category": "sistema",
+   "title": "Modo cooperativo",
+   "text": "O treino cooperativo registra apenas a duração escolhida. Não há pontos, sets, vencedor, ELO nem avisos de ponto.",
+   "source": "Regra do PingHub"
+  },
+  {
+   "id": 11,
+   "category": "sistema",
+   "title": "Encerramento do torneio",
+   "text": "Quando a última partida (incluindo a disputa de 3º lugar, se houver) termina, o PingHub mostra o resumo completo e remove o evento da lista automaticamente. Títulos, partidas e ELO continuam salvos.",
+   "source": "Regra do PingHub"
+  }
+ ]
+}

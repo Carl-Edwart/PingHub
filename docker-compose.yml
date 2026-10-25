@@ -1,0 +1,12 @@
+# MySQL pronto para uso:  docker compose up -d   (o app cria as tabelas sozinho)
+services:
+  db:
+    image: mysql:8
+    environment:
+      MYSQL_ROOT_PASSWORD: pinghub
+      MYSQL_DATABASE: pinghub
+    ports: ["3306:3306"]
+    volumes:
+      - dbdata:/var/lib/mysql
+volumes:
+  dbdata:
