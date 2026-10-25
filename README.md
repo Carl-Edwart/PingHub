@@ -12,7 +12,9 @@ cp .env.example .env                 # confira usuário/senha
 ./run.sh                             # cria a .venv, instala e sobe o servidor
 ```
 
-Abra **http://localhost:5000**. O banco e as tabelas são criados sozinhos na primeira requisição.
+Abra **http://localhost:5000**. Em desenvolvimento (`PINGHUB_ENV=development`, que o `run.sh` já define) o banco e as tabelas são criados sozinhos na primeira requisição.
+
+**Produção (Railway ou similar):** veja **[DEPLOY.md](DEPLOY.md)** — `gunicorn app:app`, variáveis de ambiente obrigatórias, banco remoto, `/health`, migração de dados e rollback. Testes: `python test_app.py` e `python test_production.py`.
 Manualmente: `python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt && python app.py`.
 
 Antes de subir, defina no `.env` uma `ADMIN_PASSWORD` forte e uma `SECRET_KEY` aleatória. Gere o segredo com
@@ -25,7 +27,7 @@ app.py            backend inteiro: config, MySQL, esquema, ELO, chaves, API REST
 index.html        frontend inteiro: marcação, tema (CSS) e telas (JS)
 conteudo.json     técnicas de estudo e regras (ITTF + mesa local) — edite à vontade
 test_app.py       testes de torneios/partidas/ELO com banco simulado (sem MySQL): python test_app.py
-requirements.txt  .env.example  docker-compose.yml  run.sh
+requirements.txt  .env.example  docker-compose.yml  run.sh  gunicorn.conf.py  railway.json  DEPLOY.md  test_production.py
 ```
 
 Dentro do `app.py` as seções são separadas por banners (`# ==== ATLETAS ====`, `TORNEIOS`, `PARTIDAS`…).

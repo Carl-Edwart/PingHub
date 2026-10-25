@@ -1,8 +1,10 @@
 """PingHub — backend completo em um único arquivo: config, MySQL, esquema, ELO, chaves, API REST e servidor do frontend.
 
-Rodar:  python app.py   →  http://localhost:5000   (as tabelas são criadas sozinhas na primeira requisição)
+Desenvolvimento:  PINGHUB_ENV=development python app.py   →  http://localhost:5000   (ou ./run.sh)
+Produção:         gunicorn app:app   (ver gunicorn.conf.py e DEPLOY.md)
+Esquema:          python app.py init-db   (idempotente, só ADICIONA tabelas/colunas; nunca apaga dados)
 """
-import base64, csv, hmac, io, itertools, json, math, os, random, threading, time
+import base64, csv, hmac, io, itertools, json, logging, math, os, random, ssl, sys, threading, time
 from datetime import date, datetime
 from decimal import Decimal
 from functools import wraps
@@ -10,20 +12,109 @@ from pathlib import Path
 
 import pymysql
 from dotenv import load_dotenv
-from flask import Blueprint, Flask, Response, abort, g, jsonify, request, send_from_directory
+from flask import Blueprint, Flask, Response, abort, g, jsonify, make_response, request, send_from_directory
 from flask.json.provider import DefaultJSONProvider
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from werkzeug.exceptions import HTTPException
+from werkzeug.middleware.proxy_fix import ProxyFix
 
-load_dotenv()
+load_dotenv()   # não sobrescreve variáveis já definidas pela plataforma (override=False é o padrão)
 ROOT = Path(__file__).resolve().parent
 api = Blueprint("api", __name__)
 
+# ============ CONFIGURAÇÃO (variáveis de ambiente) ============
+# PINGHUB_ENV: "development" libera os padrões locais (MySQL em 127.0.0.1, root sem senha).
+# Qualquer outro valor (inclusive ausente) é produção: exige configuração completa e forte.
+ENV = os.getenv("PINGHUB_ENV", "production").strip().lower()
+IS_DEV = ENV in ("development", "dev", "test", "testing")
+
+
+class ConfigError(RuntimeError):
+    """Configuração ausente/inválida. A mensagem cita só NOMES de variáveis, nunca valores."""
+
+
+_WEAK = {"", "pinghub", "root", "password", "senha", "admin", "secret", "changeme", "change-me",
+         "troque-esta-senha", "troque-este-segredo-aleatorio", "troque-por-uma-senha-forte"}
+
+
+def _is_weak(value):
+    """Valor vazio, comum ou de exemplo (os placeholders do .env.example começam com troque-/defina-)."""
+    v = (value or "").strip().lower()
+    return v in _WEAK or v.startswith(("troque", "defina", "changeme", "change-me", "example", "exemplo"))
+
+
+def _env_bool(name, default=False):
+    raw = os.getenv(name)
+    return default if raw is None or raw.strip() == "" else raw.strip().lower() in ("1", "true", "yes", "on", "sim")
+
+
+def _env_int(name, default, minimum=None, maximum=None):
+    """Lê um inteiro do ambiente; falha com mensagem clara (sem expor o valor) se for inválido."""
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return default
+    try:
+        value = int(raw.strip())
+    except ValueError:
+        raise ConfigError(f"{name} deve ser um número inteiro.") from None
+    if (minimum is not None and value < minimum) or (maximum is not None and value > maximum):
+        raise ConfigError(f"{name} fora do intervalo permitido ({minimum}..{maximum}).")
+    return value
+
+
+def validate_config():
+    """Devolve a lista de problemas de configuração (vazia se estiver tudo certo). Nunca inclui valores."""
+    problems = []
+    for name, lo, hi in (("DB_PORT", 1, 65535), ("PORT", 1, 65535), ("ADMIN_TOKEN_HOURS", 1, None),
+                         ("ADMIN_LOGIN_WINDOW", 60, None), ("ADMIN_LOGIN_MAX", 1, None),
+                         ("TRUSTED_PROXY_COUNT", 0, 10), ("DB_CONNECT_TIMEOUT", 1, 120), ("DB_READ_TIMEOUT", 1, 600)):
+        try:
+            _env_int(name, None, lo, hi)
+        except ConfigError as e:
+            problems.append(str(e))
+    if IS_DEV:
+        return problems
+    for name in ("DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME"):
+        if not (os.getenv(name) or "").strip():
+            problems.append(f"{name} é obrigatória em produção.")
+    if (os.getenv("DB_PASSWORD") or "").strip() and _is_weak(os.getenv("DB_PASSWORD")):
+        problems.append("DB_PASSWORD é um valor de exemplo/fraco; use a senha real do banco.")
+    secret, admin = os.getenv("SECRET_KEY") or "", os.getenv("ADMIN_PASSWORD") or ""
+    if not secret:
+        problems.append("SECRET_KEY é obrigatória em produção.")
+    elif len(secret) < 32 or _is_weak(secret):
+        problems.append("SECRET_KEY precisa ter ao menos 32 caracteres aleatórios (veja DEPLOY.md).")
+    if not admin:
+        problems.append("ADMIN_PASSWORD é obrigatória em produção.")
+    elif len(admin) < 12 or _is_weak(admin):
+        problems.append("ADMIN_PASSWORD precisa ter ao menos 12 caracteres e não pode ser um valor de exemplo.")
+    if secret and admin and secret == admin:
+        problems.append("SECRET_KEY e ADMIN_PASSWORD devem ser diferentes.")
+    return problems
+
+
+def _dbcfg(name, dev_default):
+    """Variável do banco: em desenvolvimento aceita o padrão local; em produção não há fallback."""
+    value = os.getenv(name)
+    if value is None or (value.strip() == "" and name != "DB_PASSWORD"):
+        if IS_DEV:
+            return dev_default
+        raise ConfigError(f"{name} é obrigatória em produção.")
+    return value
+
+
+def _safe_int(name, default, minimum=None):
+    try:
+        return _env_int(name, default, minimum)
+    except ConfigError:
+        return default   # o valor inválido é reportado por validate_config() na inicialização
+
+
 # ============ SEGURANÇA ADMIN ============
-ADMIN_TOKEN_HOURS = max(1, int(os.getenv("ADMIN_TOKEN_HOURS", "12")))
+ADMIN_TOKEN_HOURS = _safe_int("ADMIN_TOKEN_HOURS", 12, 1)
 ADMIN_TOKEN_AGE = ADMIN_TOKEN_HOURS * 3600
-ADMIN_LOGIN_WINDOW = max(60, int(os.getenv("ADMIN_LOGIN_WINDOW", "900")))
-ADMIN_LOGIN_MAX = max(1, int(os.getenv("ADMIN_LOGIN_MAX", "5")))
+ADMIN_LOGIN_WINDOW = _safe_int("ADMIN_LOGIN_WINDOW", 900, 60)
+ADMIN_LOGIN_MAX = _safe_int("ADMIN_LOGIN_MAX", 5, 1)
 _login_fails = {}
 _login_lock = threading.Lock()
 
@@ -75,7 +166,11 @@ def _login_blocked(ip):
 
 def _login_failed(ip):
     with _login_lock:
-        _login_fails.setdefault(ip, []).append(time.monotonic())
+        now = time.monotonic()
+        if len(_login_fails) > 2000:   # evita crescimento ilimitado do dicionário
+            for k in [k for k, v in _login_fails.items() if not v or now - v[-1] > ADMIN_LOGIN_WINDOW]:
+                _login_fails.pop(k, None)
+        _login_fails.setdefault(ip, []).append(now)
 
 
 def _login_ok(ip):
@@ -206,33 +301,56 @@ MIGRATIONS = [
 ]
 
 
+SCHEMA_LOCK = "pinghub_schema_init"
+
+
 def _params(with_db=True):
-    p = dict(host=os.getenv("DB_HOST", "127.0.0.1"), port=int(os.getenv("DB_PORT", 3306)),
-             user=os.getenv("DB_USER", "root"), password=os.getenv("DB_PASSWORD", ""),
-             charset="utf8mb4", cursorclass=pymysql.cursors.DictCursor, autocommit=False)
+    p = dict(host=_dbcfg("DB_HOST", "127.0.0.1"), port=_safe_int("DB_PORT", 3306, 1),
+             user=_dbcfg("DB_USER", "root"), password=_dbcfg("DB_PASSWORD", ""),
+             charset="utf8mb4", cursorclass=pymysql.cursors.DictCursor, autocommit=False,
+             connect_timeout=_safe_int("DB_CONNECT_TIMEOUT", 10, 1), read_timeout=_safe_int("DB_READ_TIMEOUT", 30, 1),
+             write_timeout=_safe_int("DB_READ_TIMEOUT", 30, 1))
     if with_db:
-        p["database"] = os.getenv("DB_NAME", "pinghub")
+        p["database"] = _dbcfg("DB_NAME", "pinghub")
+    ca = (os.getenv("DB_SSL_CA") or "").strip()
+    if ca:                                   # TLS verificando a CA informada (arquivo PEM)
+        p["ssl"] = {"ca": ca}
+    elif _env_bool("DB_SSL"):                # TLS verificando as CAs do sistema
+        p["ssl"] = ssl.create_default_context()
     return p
 
 
-def init_db():
-    """Cria o banco e as tabelas se ainda não existirem (idempotente)."""
-    name = os.getenv("DB_NAME", "pinghub")
-    boot = pymysql.connect(**_params(with_db=False))
-    with boot.cursor() as c:
-        c.execute(f"CREATE DATABASE IF NOT EXISTS `{name}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
-    boot.commit()
-    boot.close()
+def init_db(create_database=False):
+    """Cria as tabelas/colunas que faltam. Idempotente e SOMENTE aditivo: nunca apaga nem altera dados.
+    Um lock do MySQL (GET_LOCK) impede que duas instâncias iniciando juntas disputem o mesmo DDL.
+    create_database=True também cria o banco (exige privilégio CREATE; use só em desenvolvimento/1ª criação)."""
+    if create_database:
+        name = _dbcfg("DB_NAME", "pinghub").replace("`", "``")
+        boot = pymysql.connect(**_params(with_db=False))
+        try:
+            with boot.cursor() as c:
+                c.execute(f"CREATE DATABASE IF NOT EXISTS `{name}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
+            boot.commit()
+        finally:
+            boot.close()
     con = pymysql.connect(**_params())
-    with con.cursor() as c:
-        for stmt in filter(None, (s.strip() for s in SCHEMA.split(";"))):
-            c.execute(stmt)
-        for table, col, ddl in MIGRATIONS:
-            c.execute(f"SHOW COLUMNS FROM `{table}` LIKE %s", (col,))
-            if not c.fetchall():
-                c.execute(f"ALTER TABLE `{table}` ADD COLUMN `{col}` {ddl}")
-    con.commit()
-    con.close()
+    try:
+        with con.cursor() as c:
+            c.execute("SELECT GET_LOCK(%s, 60) AS got", (SCHEMA_LOCK,))
+            if not (c.fetchone() or {}).get("got"):
+                raise RuntimeError("Não foi possível obter o lock de criação do esquema (outra instância em execução?).")
+            try:
+                for stmt in filter(None, (s.strip() for s in SCHEMA.split(";"))):
+                    c.execute(stmt)
+                for table, col, ddl in MIGRATIONS:
+                    c.execute(f"SHOW COLUMNS FROM `{table}` LIKE %s", (col,))
+                    if not c.fetchall():
+                        c.execute(f"ALTER TABLE `{table}` ADD COLUMN `{col}` {ddl}")
+            finally:
+                c.execute("SELECT RELEASE_LOCK(%s)", (SCHEMA_LOCK,))
+        con.commit()
+    finally:
+        con.close()
 
 
 def conn():
@@ -256,17 +374,32 @@ def x(sql, args=()):
 
 
 def finish(response):
-    """after_request: confirma a transação se deu certo, desfaz se status >= 400."""
+    """after_request: confirma a transação se deu certo, desfaz se status >= 400.
+    Se o COMMIT falhar, a resposta de sucesso NÃO pode seguir adiante: vira 503 e a transação é desfeita."""
     db = g.get("db")
     if db is not None:
-        db.commit() if response.status_code < 400 else db.rollback()
+        try:
+            if response.status_code < 400:
+                db.commit()
+            else:
+                db.rollback()
+        except Exception:
+            logging.getLogger("pinghub").exception("Falha ao confirmar/desfazer a transação")
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            response = make_response(jsonify(error="Banco de dados indisponível no momento. Tente novamente."), 503)
     return response
 
 
 def close(_exc=None):
     db = g.pop("db", None)
     if db is not None:
-        db.close()
+        try:
+            db.close()
+        except Exception:
+            logging.getLogger("pinghub").warning("Falha ao fechar a conexão com o banco", exc_info=True)
 
 
 # ============ ELO ============
@@ -322,6 +455,30 @@ def round_robin(ids):
 def place_for_round(reached, last_round):
     """Colocação (empatada) de quem parou na rodada `reached` numa eliminatória: semi=3º, quartas=5º..."""
     return 2 ** (last_round - reached) + 1
+
+
+# ============ ENTRADAS ============
+def _json():
+    """Corpo JSON como dict. Ausente/ilegível vira {} (como antes); um JSON que não seja objeto vira 400."""
+    d = request.get_json(silent=True)
+    if d is None:
+        return {}
+    if not isinstance(d, dict):
+        abort(400, "Corpo da requisição inválido.")
+    return d
+
+
+def _as_id(value, what="identificador"):
+    """Converte para inteiro positivo ou responde 400 (evita 500 por tipos inesperados no JSON)."""
+    if isinstance(value, bool) or not isinstance(value, (int, str)):
+        abort(400, f"{what.capitalize()} inválido.")
+    try:
+        n = int(value)
+    except ValueError:
+        abort(400, f"{what.capitalize()} inválido.")
+    if n < 1 or n > 2_147_483_647:
+        abort(400, f"{what.capitalize()} inválido.")
+    return n
 
 
 # ============ ATLETAS ============
@@ -383,7 +540,7 @@ def list_athletes():
 # ---- autenticação (token assinado, sem cookie de sessão) ----
 @api.post("/admin/login")
 def admin_login():
-    d = request.get_json(silent=True) or {}
+    d = _json()
     ip = _login_ip()
     if _login_blocked(ip):
         abort(429, "Muitas tentativas. Aguarde alguns minutos e tente de novo.")
@@ -408,7 +565,7 @@ def admin_check():
 @api.post("/athletes")
 @admin_required
 def create_athlete():
-    f = _clean(request.get_json(silent=True) or {})
+    f = _clean(_json())
     new_id = x(f"INSERT INTO athletes ({', '.join(f)}, elo) VALUES ({', '.join(['%s'] * len(f))}, %s)",
                (*f.values(), ELO_INITIAL))
     return jsonify(_get_or_404(new_id)), 201
@@ -475,7 +632,7 @@ def get_athlete(athlete_id):
 @admin_required
 def update_athlete(athlete_id):
     _get_or_404(athlete_id)
-    d = request.get_json(silent=True) or {}
+    d = _json()
     f = _clean(d)
     if "photo" not in d:   # só mexe na foto se o campo veio na requisição
         f.pop("photo")
@@ -662,7 +819,7 @@ def list_tournaments():
 @api.post("/tournaments")
 @admin_required
 def create_tournament():
-    d = request.get_json(silent=True) or {}
+    d = _json()
     name = (d.get("name") or "").strip()
     kind = d.get("type")
     try:
@@ -745,8 +902,10 @@ def delete_tournament(tid):
 # ============ PARTIDAS ============
 def _player(spec, label):
     spec = spec or {}
+    if not isinstance(spec, dict):
+        abort(400, f"Dados do {label} inválidos.")
     if spec.get("athlete_id"):
-        a = q("SELECT id, name, elo FROM athletes WHERE id=%s", (spec["athlete_id"],), one=True)
+        a = q("SELECT id, name, elo FROM athletes WHERE id=%s", (_as_id(spec["athlete_id"], "atleta"),), one=True)
         if not a:
             abort(404, "Atleta não encontrado.")
         return a
@@ -785,7 +944,7 @@ def _check_sets(sets, points, best_of):
 
 @api.post("/matches")
 def create_match():
-    d = request.get_json(silent=True) or {}
+    d = _json()
     modality, mode = d.get("modality", "singles"), d.get("mode", "competitive")
     if modality not in ("singles", "doubles") or mode not in ("competitive", "cooperative"):
         abort(400, "Modo ou modalidade inválidos.")
@@ -796,7 +955,8 @@ def create_match():
 
     tm = None
     if d.get("tournament_match_id"):   # partida de torneio: jogadores e regras vêm do torneio
-        tm = q("SELECT * FROM tournament_matches WHERE id=%s", (d["tournament_match_id"],), one=True)
+        tm = q("SELECT * FROM tournament_matches WHERE id=%s FOR UPDATE",   # trava: impede resultado duplicado
+               (_as_id(d["tournament_match_id"], "confronto"),), one=True)
         if not tm:
             abort(404, "Confronto não encontrado.")
         if tm["status"] == "done" or not (tm["player1_id"] and tm["player2_id"]):
@@ -806,6 +966,8 @@ def create_match():
         s1, s2 = {"athlete_id": tm["player1_id"]}, {"athlete_id": tm["player2_id"]}
     else:
         s1, s2 = d.get("player1") or {}, d.get("player2") or {}
+        if not isinstance(s1, dict) or not isinstance(s2, dict):
+            abort(400, "Dados dos jogadores inválidos.")
         if modality == "doubles":
             s1, s2 = {"name": s1.get("name")}, {"name": s2.get("name")}
     p1, p2 = _player(s1, "jogador 1"), _player(s2, "jogador 2")
@@ -814,6 +976,17 @@ def create_match():
 
     if best_of not in (1, 3, 5, 7) or not 3 <= points <= 21:
         abort(400, "Configuração de partida inválida.")
+    # Trava as linhas dos atletas (em ordem de id, para não gerar deadlock) e relê o ELO atual: duas partidas
+    # simultâneas do mesmo atleta não podem calcular a partir de um ELO desatualizado.
+    locked = sorted({p["id"] for p in (p1, p2) if p["id"]})
+    if locked:
+        fresh = {r["id"]: r["elo"] for r in q(
+            f"SELECT id, elo FROM athletes WHERE id IN ({','.join(['%s'] * len(locked))}) ORDER BY id FOR UPDATE", locked)}
+        for p in (p1, p2):
+            if p["id"]:
+                if p["id"] not in fresh:
+                    abort(404, "Atleta não encontrado.")
+                p["elo"] = fresh[p["id"]]
     if mode == "cooperative":
         # Treino cooperativo: vale só o tempo; sem sets, pontos, vencedor ou ELO.
         sets, sets_p1, sets_p2, winner = [], 0, 0, None
@@ -896,11 +1069,16 @@ def ranking():
     return jsonify(rows)
 
 
+def _cell(v):
+    """Nomes vêm de entrada pública: neutraliza células que o Excel/Sheets interpretariam como fórmula."""
+    return "'" + v if isinstance(v, str) and v[:1] in ("=", "+", "-", "@", "\t", "\r") else v
+
+
 def _csv(filename, header, lines):
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(header)
-    w.writerows(lines)
+    w.writerows([[_cell(v) for v in row] for row in lines])
     return Response("\ufeff" + buf.getvalue(), mimetype="text/csv",
                     headers={"Content-Disposition": f"attachment; filename={filename}"})
 
@@ -971,7 +1149,7 @@ def _status():
 
 
 def _name():
-    name = ((request.get_json(silent=True) or {}).get("name") or "").strip()
+    name = ((_json()).get("name") or "").strip()
     if not name:
         abort(400, "Informe seu nome.")
     return name[:100]
@@ -988,11 +1166,15 @@ def status():
 
 @api.post("/mesa/occupy")
 def occupy():
-    d = request.get_json(silent=True) or {}
+    d = _json()
     name = _name()
-    if q("SELECT occupied_by FROM mesa_state WHERE id=1", one=True)["occupied_by"]:
+    try:
+        minutes = int(d.get("minutes") or 15)
+    except (TypeError, ValueError):
+        abort(400, "Duração inválida.")
+    if q("SELECT occupied_by FROM mesa_state WHERE id=1 FOR UPDATE", one=True)["occupied_by"]:
         abort(409, "A mesa já está ocupada.")
-    _occupy(name, max(1, min(int(d.get("minutes") or 15), 120)))
+    _occupy(name, max(1, min(minutes, 120)))
     return jsonify(_status())
 
 
@@ -1020,7 +1202,7 @@ def leave_queue(item_id):
 @api.post("/mesa/next")
 def call_next():
     """Libera a mesa e coloca o primeiro da fila nela."""
-    first = q("SELECT id, name FROM mesa_queue ORDER BY id LIMIT 1", one=True)
+    first = q("SELECT id, name FROM mesa_queue ORDER BY id LIMIT 1 FOR UPDATE", one=True)
     if not first:
         abort(404, "A fila está vazia.")
     x("DELETE FROM mesa_queue WHERE id=%s", (first["id"],))
@@ -1044,33 +1226,103 @@ class Provider(DefaultJSONProvider):
 
 
 _ready = False
+_ready_lock = threading.Lock()
+# Criação automática do esquema na 1ª requisição: padrão ligado em desenvolvimento, DESLIGADO em produção
+# (em produção rode `python app.py init-db` como pre-deploy; DB_AUTO_INIT=1 reativa o comportamento automático).
+AUTO_INIT = _env_bool("DB_AUTO_INIT", IS_DEV)
+# Erros do MySQL que significam "banco indisponível/não pronto" (e não bug de SQL): conexão, auth, lock, tabela ausente.
+_DB_DOWN = {1040, 1045, 1049, 1130, 1146, 1205, 1213, 2002, 2003, 2006, 2013, 2055}
+
+
+def _db_unavailable(exc):
+    if isinstance(exc, pymysql.err.InterfaceError):
+        return True
+    return isinstance(exc, pymysql.err.OperationalError) and (exc.args[0] if exc.args else None) in _DB_DOWN
+
+
+def _configure_logging():
+    """Logs em stdout (coletados pela plataforma). Nunca registramos corpos de requisição, senhas nem tokens."""
+    level = getattr(logging, (os.getenv("LOG_LEVEL") or "INFO").upper(), logging.INFO)
+    if not logging.getLogger().handlers:
+        logging.basicConfig(stream=sys.stdout, level=level, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    logging.getLogger("pinghub").setLevel(level)
 
 
 def create_app():
+    _configure_logging()
+    problems = validate_config()
+    if problems:
+        raise ConfigError("Configuração inválida:\n  - " + "\n  - ".join(problems))
+    log = logging.getLogger("pinghub")
+    if not IS_DEV and (os.getenv("DB_USER") or "").strip().lower() == "root":
+        log.warning("DB_USER=root: prefira um usuário da aplicação com permissões só sobre o banco do PingHub.")
     app = Flask(__name__, static_folder=None)   # sem pasta estática: só o index.html é servido (nada de .env/app.py)
+    app.config["MAX_CONTENT_LENGTH"] = 1_048_576   # 1 MiB (a foto de atleta é limitada a ~600 KB)
+    proxies = _safe_int("TRUSTED_PROXY_COUNT", 0, 0)
+    if proxies:   # atrás de proxy reverso (Railway): usa o IP real do cliente no limite de tentativas de login
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=proxies, x_proto=proxies)
     app.json = Provider(app)
     app.after_request(finish)
     app.teardown_appcontext(close)
     app.register_blueprint(api, url_prefix="/api")
 
+    @app.after_request
+    def _headers(resp):
+        resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+        resp.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+        resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        if request.is_secure:
+            resp.headers.setdefault("Strict-Transport-Security", "max-age=31536000")
+        return resp
+
     @app.before_request
     def _setup():
         global _ready
-        if not _ready and request.path.startswith("/api"):
-            init_db()
-            _ready = True
+        if AUTO_INIT and not _ready and request.path.startswith("/api"):
+            with _ready_lock:
+                if not _ready:
+                    init_db(create_database=IS_DEV)
+                    _ready = True
 
     @app.get("/")
     def index():
         return send_from_directory(ROOT, "index.html", max_age=0)
 
+    @app.get("/health")
+    def health():
+        """Liveness: o processo está de pé. Não toca no banco (uma oscilação do banco não derruba o deploy)."""
+        return jsonify(status="ok"), 200, {"Cache-Control": "no-store"}
+
+    @app.get("/health/db")
+    def health_db():
+        """Readiness: o banco responde e o esquema existe. A causa real vai só para o log."""
+        try:
+            con = pymysql.connect(**{**_params(), "connect_timeout": 5, "read_timeout": 5})
+            try:
+                with con.cursor() as c:
+                    c.execute("SELECT 1 FROM athletes LIMIT 1")
+            finally:
+                con.close()
+        except Exception as e:
+            log.error("health/db falhou: %s", type(e).__name__, exc_info=not isinstance(e, pymysql.err.MySQLError))
+            return jsonify(status="unavailable"), 503, {"Cache-Control": "no-store"}
+        return jsonify(status="ok", database="ok"), 200, {"Cache-Control": "no-store"}
+
     @app.errorhandler(HTTPException)
     def http_error(e):
         return jsonify(error=e.description), e.code
 
+    @app.errorhandler(pymysql.err.MySQLError)
+    def db_error(e):
+        if _db_unavailable(e):
+            code = e.args[0] if e.args else "?"
+            log.error("Banco indisponível (%s, código %s)", type(e).__name__, code)
+            return jsonify(error="Banco de dados indisponível no momento. Tente novamente."), 503
+        return server_error(e)
+
     @app.errorhandler(Exception)
     def server_error(e):
-        app.logger.exception(e)
+        log.exception("Erro não tratado em %s %s", request.method, request.path)
         return jsonify(error="Erro interno do servidor"), 500
 
     return app
@@ -1078,5 +1330,19 @@ def create_app():
 
 app = create_app()
 
+
+def _main(argv):
+    cmd = argv[1] if len(argv) > 1 else "dev"
+    if cmd == "init-db":
+        init_db(create_database="--create-database" in argv)
+        print("Esquema do PingHub pronto (somente criou o que faltava; nenhum dado foi alterado).")
+    elif cmd == "dev":
+        if not IS_DEV:
+            sys.exit("python app.py é só para desenvolvimento (PINGHUB_ENV=development). Em produção use: gunicorn app:app")
+        app.run(host=os.getenv("HOST", "127.0.0.1"), port=_safe_int("PORT", 5000, 1), debug=_env_bool("FLASK_DEBUG", False))
+    else:
+        sys.exit("Uso: python app.py [dev | init-db [--create-database]]")
+
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)), debug=True)
+    _main(sys.argv)

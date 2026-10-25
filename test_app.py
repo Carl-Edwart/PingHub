@@ -1,6 +1,7 @@
 """Testes da lógica de torneios, partidas, ELO e atletas — banco simulado em SQLite, sem MySQL.  Rodar: python test_app.py"""
 import sys, types, sqlite3, json, datetime, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+os.environ['PINGHUB_ENV'] = 'development'   # testes usam o modo desenvolvimento (a validação de produção é testada em test_production.py)
 os.environ['ADMIN_PASSWORD'] = 'senha-de-teste'
 os.environ['SECRET_KEY'] = 'segredo-de-teste-somente-para-testes'
 os.environ['ADMIN_TOKEN_HOURS'] = '12'
@@ -25,7 +26,7 @@ CREATE TABLE tournament_matches(id INTEGER PRIMARY KEY AUTOINCREMENT,tournament_
 CREATE TABLE elo_history(id INTEGER PRIMARY KEY AUTOINCREMENT,athlete_id,match_id,delta,elo_after,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
 """)
 def _c(sql, args):
-    return sql.replace('%s', '?'), [a.isoformat() if isinstance(a, datetime.date) else a for a in args]
+    return sql.replace('%s', '?').replace(' FOR UPDATE', ''), [a.isoformat() if isinstance(a, datetime.date) else a for a in args]
 def q(sql, args=(), one=False):
     s, a = _c(sql, args); cur = con.execute(s, a); return cur.fetchone() if one else cur.fetchall()
 def x(sql, args=()):
