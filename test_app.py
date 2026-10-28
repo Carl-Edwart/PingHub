@@ -5,6 +5,7 @@ os.environ['ADMIN_PASSWORD'] = 'senha-de-teste'
 os.environ['SECRET_KEY'] = 'segredo-de-teste-somente-para-testes'
 os.environ['ADMIN_TOKEN_HOURS'] = '12'
 os.environ['PINGHUB_ENV'] = 'development'
+os.environ['DB_INIT_ON_START'] = '0'
 
 # --- dependências externas que podem não estar instaladas (só o Flask é necessário) ---
 import types as _t
@@ -17,6 +18,14 @@ for _n in ('psycopg', 'dotenv'):
             _m.connect = lambda *a, **k: None
             _rows = _t.ModuleType('psycopg.rows'); _rows.dict_row = object()
             sys.modules['psycopg.rows'] = _rows
+            _sql = _t.ModuleType('psycopg.sql')
+            class _FakeSQL:
+                def __init__(self, *a, **k): pass
+                def format(self, *a, **k): return self
+            _sql.SQL = _FakeSQL
+            _sql.Identifier = lambda *a, **k: _FakeSQL()
+            _m.sql = _sql
+            sys.modules['psycopg.sql'] = _sql
 from werkzeug.exceptions import HTTPException as Abort
 
 # --- db falso (SQLite) ---

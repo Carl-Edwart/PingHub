@@ -1,5 +1,9 @@
 """Configuração do Gunicorn para produção (carregada automaticamente: `gunicorn app:app`).
 
+Cada worker importa `app` e aplica o schema no boot (DB_INIT_ON_START=1). O advisory lock
+transacional serializa workers e reinícios, então não é preciso uma requisição HTTP nem criar
+tabelas manualmente. O `scripts/start.sh` ainda roda `init-db` antes, com retries para banco lento.
+
 Por que 1 worker + várias threads: o PingHub guarda o limite de tentativas de login na memória do processo.
 Com vários workers o limite valeria por worker (5 x N tentativas). Uma instância com threads atende com folga
 o volume de um clube e mantém o limite correto. Para escalar, suba WEB_CONCURRENCY ciente dessa troca.

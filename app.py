@@ -1,7 +1,7 @@
 """PingHub — backend completo em um único arquivo: config, PostgreSQL, esquema, ELO, chaves, API REST e frontend.
 
 Desenvolvimento: PINGHUB_ENV=development python app.py  →  http://localhost:5000
-Produção:        python app.py init-db && gunicorn app:app  (ver DEPLOY.md)
+Produção:        gunicorn app:app  (o schema é aplicado no boot; ver DEPLOY.md)
 """
 import base64, csv, hmac, io, itertools, json, logging, math, os, random, re, sys, threading, time
 from datetime import date, datetime
@@ -30,8 +30,20 @@ class ConfigError(RuntimeError):
     """Configuração inválida sem expor valores de variáveis de ambiente."""
 
 
+class DatabaseInitError(RuntimeError):
+    """Falha segura de inicialização do PostgreSQL; a mensagem não contém credenciais."""
+
+
 _WEAK = {"", "pinghub", "pinghub-local-only", "root", "password", "senha", "admin", "secret", "changeme", "change-me",
          "replace-with-a-strong-password", "replace-with-a-random-secret"}
+
+_raw_schema = (os.getenv("DB_SCHEMA") or "").strip()
+DB_SCHEMA = _raw_schema or "public"
+DB_SCHEMA_EXPLICIT = bool(_raw_schema)
+
+
+def _valid_schema(name):
+    return bool(re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,62}", name or ""))
 
 
 def _is_weak(value):
@@ -59,6 +71,10 @@ def _env_bool(name, default=False):
 
 def validate_config():
     problems = []
+    if not _valid_schema(DB_SCHEMA):
+        problems.append("DB_SCHEMA deve ser um identificador PostgreSQL válido (letras, números e _, até 63 caracteres).")
+    elif DB_SCHEMA.lower() == "information_schema" or DB_SCHEMA.lower().startswith("pg_"):
+        problems.append("DB_SCHEMA não pode ser um schema reservado do PostgreSQL.")
     for name, lo, hi in (("PORT", 1, 65535), ("DB_PORT", 1, 65535),
                          ("DB_CONNECT_TIMEOUT", 1, 120), ("ADMIN_TOKEN_HOURS", 1, None),
                          ("ADMIN_LOGIN_WINDOW", 60, None), ("ADMIN_LOGIN_MAX", 1, None),
@@ -285,6 +301,15 @@ CREATE TABLE IF NOT EXISTS mesa_queue (
 );
 """
 
+EXPECTED_TABLES = frozenset({
+    "athletes", "tournaments", "tournament_players", "matches",
+    "tournament_matches", "elo_history", "mesa_state", "mesa_queue",
+})
+
+# Chave fixa em 64 bits ("PINGHUB" em ASCII). O advisory lock é por banco e
+# serializa a inicialização entre workers/instâncias sem bloquear outras tabelas.
+DB_INIT_LOCK_KEY = 0x50494E47485542
+
 # colunas acrescentadas depois da 1ª versão — aplicadas sozinhas em bancos que já existem
 MIGRATIONS = [
     ("athletes", "club", "VARCHAR(80) NULL"), ("athletes", "birth_date", "DATE NULL"),
@@ -314,26 +339,117 @@ def _database_url():
     return f"postgresql://{credentials}@{host}:{port}/{quote(name, safe='')}"
 
 
+def _database_target():
+    """Host/porta/banco para logs, nunca usuário, senha ou URL completa."""
+    try:
+        from urllib.parse import urlsplit
+        parsed = urlsplit(_database_url())
+        return f"{parsed.hostname or '?'}:{parsed.port or 5432}/{(parsed.path or '/').lstrip('/') or '?'}"
+    except Exception:
+        return "alvo-desconhecido"
+
+
+def _safe_db_error(exc):
+    """Resumo de erro para logs, com URL/senha neutralizadas."""
+    def scrub(text):
+        text = re.sub(r"(?i)(postgres(?:ql)?://)[^@\s]+@", r"\1***@", str(text))
+        text = re.sub(r"(?i)(password\s*=\s*)\S+", r"\1***", text)
+        return text.strip()[:300]
+
+    parts = [type(exc).__name__]
+    state = getattr(exc, "sqlstate", None)
+    if state:
+        parts.append(f"SQLSTATE {state}")
+    diag = getattr(exc, "diag", None)
+    primary = getattr(diag, "message_primary", None) if diag is not None else None
+    if primary:
+        parts.append(scrub(primary))
+    else:
+        text = scrub(exc)
+        if text:
+            parts.append(text)
+    return " | ".join(parts)
+
+
+def _apply_search_path(con):
+    """Fixa o schema da aplicação em todas as conexões."""
+    with con.cursor() as cursor:
+        cursor.execute(psycopg.sql.SQL("SET search_path TO {}").format(
+            psycopg.sql.Identifier(DB_SCHEMA)))
+
+
 def _connect(**kwargs):
-    return psycopg.connect(
+    con = psycopg.connect(
         _database_url(),
         connect_timeout=_safe_int("DB_CONNECT_TIMEOUT", 10, 1),
         **kwargs,
     )
+    try:
+        _apply_search_path(con)
+    except Exception:
+        con.close()
+        raise
+    return con
 
 
 def init_db():
-    """Cria o esquema PostgreSQL idempotentemente; não cria bancos nem apaga dados."""
-    con = _connect(row_factory=dict_row)
+    """Cria/atualiza o schema PostgreSQL de forma idempotente, sem apagar dados.
+
+    Usa um advisory lock transacional para que múltiplos workers não disputem
+    CREATE TABLE/ALTER TABLE ao mesmo tempo. Pode ser chamado repetidamente.
+    """
+    logger = logging.getLogger("pinghub")
+    target = _database_target()
+    logger.info("Inicializando schema PostgreSQL '%s' em %s.", DB_SCHEMA, target)
+    con = None
     try:
+        con = _connect(row_factory=dict_row)
         with con.cursor() as c:
-            for stmt in filter(None, (s.strip() for s in SCHEMA.split(";"))):
-                c.execute(stmt)
+            # Serializa a inicialização entre workers/instâncias. O lock é
+            # liberado no commit ou no rollback desta transação.
+            c.execute("SELECT pg_advisory_xact_lock(%s)", (DB_INIT_LOCK_KEY,))
+
+            if DB_SCHEMA != "public":
+                c.execute(psycopg.sql.SQL("CREATE SCHEMA IF NOT EXISTS {}").format(
+                    psycopg.sql.Identifier(DB_SCHEMA)))
+            c.execute(psycopg.sql.SQL("SET LOCAL search_path TO {}").format(
+                psycopg.sql.Identifier(DB_SCHEMA)))
+            c.execute("SELECT current_schema() AS schema, current_setting('search_path') AS search_path")
+            effective = c.fetchone()
+            logger.info("Schema efetivo: %s (search_path=%s).",
+                        effective["schema"], effective["search_path"])
+            if effective["schema"] != DB_SCHEMA:
+                raise DatabaseInitError(
+                    f"search_path efetivo {effective['schema']!r} difere de DB_SCHEMA={DB_SCHEMA!r}."
+                )
+
+            # Evita criar tabelas vazias em public quando os dados já existem
+            # em outro schema. Com DB_SCHEMA explícito, o operador decidiu.
+            c.execute(
+                "SELECT table_schema FROM information_schema.tables "
+                "WHERE table_name = 'athletes' AND table_type = 'BASE TABLE' "
+                "AND table_schema NOT IN ('pg_catalog', 'information_schema') "
+                "ORDER BY table_schema"
+            )
+            schemas = [row["table_schema"] for row in c.fetchall()]
+            others = [name for name in schemas if name != DB_SCHEMA]
+            if others:
+                if DB_SCHEMA not in schemas and not DB_SCHEMA_EXPLICIT:
+                    raise DatabaseInitError(
+                        "Encontrei a tabela 'athletes' fora do schema configurado "
+                        f"({', '.join(others)}). Defina DB_SCHEMA para o schema correto; "
+                        "nenhuma tabela foi criada para evitar duplicar dados."
+                    )
+                logger.warning("Tabela 'athletes' também existe em: %s; usando schema '%s'.",
+                               ", ".join(others), DB_SCHEMA)
+
+            for statement in filter(None, (s.strip() for s in SCHEMA.split(";"))):
+                c.execute(statement)
             for table, col, ddl in MIGRATIONS:
                 c.execute(
                     "SELECT 1 FROM information_schema.columns "
-                    "WHERE table_schema = current_schema() AND table_name = %s AND column_name = %s",
-                    (table, col),
+                    "WHERE table_schema = %s AND table_name = %s AND column_name = %s",
+                    (DB_SCHEMA, table, col),
                 )
                 if not c.fetchone():
                     ddl = ddl.replace("TINYINT", "SMALLINT").replace("DATETIME", "TIMESTAMP")
@@ -341,12 +457,57 @@ def init_db():
             c.execute("CREATE INDEX IF NOT EXISTS idx_elo ON athletes (elo)")
             c.execute("CREATE INDEX IF NOT EXISTS idx_created ON matches (created_at)")
             c.execute("CREATE INDEX IF NOT EXISTS idx_ath ON elo_history (athlete_id, created_at)")
+
+            # Confere o resultado no schema explicitamente configurado.
+            c.execute(
+                "SELECT table_name FROM information_schema.tables "
+                "WHERE table_schema = %s AND table_type = 'BASE TABLE'",
+                (DB_SCHEMA,),
+            )
+            tables = {row["table_name"] for row in c.fetchall()}
+            missing = EXPECTED_TABLES - tables
+            if missing:
+                raise DatabaseInitError(
+                    f"Tabelas ausentes no schema '{DB_SCHEMA}': {', '.join(sorted(missing))}."
+                )
+            for table, col, _ in MIGRATIONS:
+                c.execute(
+                    "SELECT 1 FROM information_schema.columns "
+                    "WHERE table_schema = %s AND table_name = %s AND column_name = %s",
+                    (DB_SCHEMA, table, col),
+                )
+                if not c.fetchone():
+                    raise DatabaseInitError(f"Coluna {table}.{col} ausente no schema '{DB_SCHEMA}'.")
         con.commit()
-    except Exception:
-        con.rollback()
+    except DatabaseInitError as exc:
+        if con is not None:
+            try:
+                con.rollback()
+            except Exception:
+                pass
+        logger.error("Falha ao inicializar o schema PostgreSQL '%s' em %s: %s",
+                     DB_SCHEMA, target, _safe_db_error(exc))
         raise
+    except Exception as exc:
+        if con is not None:
+            try:
+                con.rollback()
+            except Exception:
+                pass
+        safe = _safe_db_error(exc)
+        logger.error("Falha ao inicializar o schema PostgreSQL '%s' em %s: %s",
+                     DB_SCHEMA, target, safe)
+        raise DatabaseInitError(
+            f"Falha ao inicializar o schema PostgreSQL '{DB_SCHEMA}' em {target}: {safe}"
+        ) from None
     finally:
-        con.close()
+        if con is not None:
+            try:
+                con.close()
+            except Exception as exc:
+                logger.warning("Falha ao fechar conexão após init (%s).", type(exc).__name__)
+    logger.info("Schema PostgreSQL '%s' pronto em %s (%d tabelas).",
+                DB_SCHEMA, target, len(EXPECTED_TABLES))
 
 
 def conn():
@@ -389,7 +550,7 @@ def finish(response):
                 db.rollback()
             except psycopg.Error:
                 logging.getLogger("pinghub").error("Rollback após falha de commit também falhou.")
-            logging.getLogger("pinghub").error("Commit do banco falhou (%s).", type(exc).__name__)
+            logging.getLogger("pinghub").error("Commit do banco falhou (%s).", _safe_db_error(exc))
             response = jsonify(error="Banco de dados indisponível no momento. Tente novamente.")
             response.status_code = 503
     return response
@@ -1204,7 +1365,13 @@ def _configure_logging():
     logging.getLogger("pinghub").setLevel(level)
 
 
+def _is_init_command():
+    """O comando `init-db` chama init_db() explicitamente; evita rodar duas vezes."""
+    return len(sys.argv) > 1 and sys.argv[1].strip().lower() == "init-db"
+
+
 def create_app():
+    global _ready
     _configure_logging()
     problems = validate_config()
     if problems:
@@ -1256,8 +1423,7 @@ def create_app():
             with _connect(row_factory=dict_row) as con, con.cursor() as cursor:
                 cursor.execute("SELECT 1 FROM athletes LIMIT 1")
         except psycopg.Error as exc:
-            app.logger.error("health/db indisponível (%s, SQLSTATE %s).",
-                             type(exc).__name__, getattr(exc, "sqlstate", None) or "unknown")
+            app.logger.error("health/db indisponível (%s).", _safe_db_error(exc))
             return jsonify(status="unavailable"), 503, {"Cache-Control": "no-store"}
         return jsonify(status="ok", database="ok"), 200, {"Cache-Control": "no-store"}
 
@@ -1265,20 +1431,34 @@ def create_app():
     def http_error(e):
         return jsonify(error=e.description), e.code
 
+    @app.errorhandler(DatabaseInitError)
+    def database_init_error(_exc):
+        app.logger.error("Inicialização do banco falhou em %s %s.", request.method, request.path)
+        return jsonify(error="Banco de dados indisponível no momento. Tente novamente."), 503
+
     @app.errorhandler(psycopg.Error)
     def database_error(exc):
-        state = getattr(exc, "sqlstate", None)
+        detail = _safe_db_error(exc)
         if _db_unavailable(exc):
-            app.logger.error("Banco indisponível (%s, SQLSTATE %s).",
-                             type(exc).__name__, state or "unknown")
+            app.logger.error("Banco indisponível em %s %s (%s).", request.method, request.path, detail)
             return jsonify(error="Banco de dados indisponível no momento. Tente novamente."), 503
-        app.logger.error("Erro de banco (%s, SQLSTATE %s).", type(exc).__name__, state or "unknown")
+        app.logger.error("Erro de banco em %s %s (%s).", request.method, request.path, detail)
         return jsonify(error="Erro interno do servidor"), 500
 
     @app.errorhandler(Exception)
     def server_error(e):
         app.logger.exception("Erro não tratado em %s %s", request.method, request.path)
         return jsonify(error="Erro interno do servidor"), 500
+
+    # A inicialização no boot é o caminho principal: funciona com `gunicorn app:app`
+    # puro, com múltiplos workers e sem depender de uma requisição HTTP. O
+    # scripts/start.sh roda init-db antes por causa de retries de banco lento.
+    _ready = False
+    if not _env_bool("DB_INIT_ON_START", True):
+        logging.getLogger("pinghub").info("Inicialização no boot desativada (DB_INIT_ON_START=0).")
+    elif not _is_init_command():
+        init_db()
+        _ready = True
 
     return app
 
@@ -1290,9 +1470,8 @@ if __name__ == "__main__":
     if command == "init-db":
         try:
             init_db()
-        except psycopg.Error as exc:
-            sys.exit(f"Não foi possível inicializar o PostgreSQL ({type(exc).__name__}, SQLSTATE "
-                     f"{getattr(exc, 'sqlstate', None) or 'unknown'}). Verifique DATABASE_URL e a disponibilidade do banco.")
+        except DatabaseInitError as exc:
+            sys.exit(str(exc))
         print("Esquema PostgreSQL pronto; nenhuma tabela ou dado foi removido.")
     elif command == "dev":
         if not IS_DEV:

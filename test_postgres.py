@@ -8,16 +8,20 @@ Flask test client e remove o schema ao final. Nunca aponte para produção.
 import os
 import secrets
 import sys
+from concurrent.futures import ThreadPoolExecutor
 
 if os.getenv("PINGHUB_TEST_DB") != "1":
     sys.exit("Defina PINGHUB_TEST_DB=1 e use um DATABASE_URL de teste/descartável.")
 
-os.environ.setdefault("PINGHUB_ENV", "production")
-os.environ.setdefault("SECRET_KEY", "test-only-secret-key-" + "x" * 32)
-os.environ.setdefault("ADMIN_PASSWORD", "test-only-admin-password")
-os.environ.setdefault("DB_AUTO_INIT", "0")
+os.environ["PINGHUB_ENV"] = "production"
+os.environ["SECRET_KEY"] = "test-only-secret-key-" + "x" * 32
+os.environ["ADMIN_PASSWORD"] = "test-only-admin-password"
+os.environ["DB_AUTO_INIT"] = "0"
+os.environ["DB_INIT_ON_START"] = "1"
+os.environ.pop("PGOPTIONS", None)
 
 import psycopg  # noqa: E402
+from psycopg.rows import dict_row  # noqa: E402
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
 if not DATABASE_URL:
@@ -26,8 +30,13 @@ if not DATABASE_URL:
 SCHEMA = "pinghub_test_" + secrets.token_hex(6)
 with psycopg.connect(DATABASE_URL, autocommit=True) as con:
     con.execute(f'CREATE SCHEMA "{SCHEMA}"')
+    empty = con.execute(
+        "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = %s",
+        (SCHEMA,),
+    ).fetchone()[0]
+assert empty == 0, "o schema de teste deveria começar vazio"
 
-os.environ["PGOPTIONS"] = f"-c search_path={SCHEMA}"
+os.environ["DB_SCHEMA"] = SCHEMA
 
 
 def expect(response, code=200):
@@ -36,8 +45,23 @@ def expect(response, code=200):
 
 
 try:
-    import app as APP  # noqa: E402  (precisa ser importado depois do PGOPTIONS)
+    # DB_INIT_ON_START=1: o import já inicializa o schema vazio, como no boot
+    # do Gunicorn. Não deve ser necessário chamar init_db() antes da 1ª rota.
+    import app as APP  # noqa: E402
 
+    with APP._connect(row_factory=dict_row) as con, con.cursor() as cur:
+        cur.execute("SELECT current_schema() AS schema, current_setting('search_path') AS path")
+        effective = cur.fetchone()
+        assert effective["schema"] == SCHEMA, effective
+        assert effective["path"] == SCHEMA, effective
+        cur.execute(
+            "SELECT COUNT(*) AS total FROM information_schema.tables "
+            "WHERE table_schema = %s AND table_type = 'BASE TABLE'",
+            (SCHEMA,),
+        )
+        assert cur.fetchone()["total"] == len(APP.EXPECTED_TABLES)
+
+    # Reinicialização explícita no mesmo schema: idempotente, sem duplicar nada.
     APP.init_db()
     client = APP.app.test_client()
 
@@ -92,7 +116,84 @@ try:
 
     stats = expect(client.get("/api/stats"))
     assert stats["athletes"] == 2 and stats["matches"] == 2 and stats["tournaments"] == 0, stats
-    print("PostgreSQL ok: esquema, autenticação, atletas, busca, ELO, torneio e mesa.")
+
+    # Reinicializações repetidas e concorrentes não podem apagar/duplicar dados.
+    def counts():
+        with APP._connect(row_factory=dict_row) as con, con.cursor() as cur:
+            cur.execute(
+                "SELECT (SELECT COUNT(*) FROM athletes) AS athletes, "
+                "(SELECT COUNT(*) FROM matches) AS matches, "
+                "(SELECT COUNT(*) FROM tournaments) AS tournaments"
+            )
+            return cur.fetchone()
+
+    before = counts()
+    APP.init_db()
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        list(pool.map(lambda _: APP.init_db(), range(4)))
+    assert counts() == before, (before, counts())
+    assert expect(client.get(f"/api/athletes/{ana['id']}"))["athlete"]["name"] == ana["name"]
+
+    # Falha de conexão vira DatabaseInitError sanitizado, sem vazar credenciais.
+    leaked = "senha-" + secrets.token_hex(8)
+    original_url = os.environ["DATABASE_URL"]
+    os.environ["DATABASE_URL"] = f"postgresql://pinghub:{leaked}@127.0.0.1:1/pinghub"
+    try:
+        try:
+            APP.init_db()
+        except APP.DatabaseInitError as exc:
+            assert "Falha ao inicializar o schema PostgreSQL" in str(exc), exc
+            assert leaked not in str(exc), exc
+        else:
+            raise AssertionError("init_db deveria falhar com o banco inacessível")
+    finally:
+        os.environ["DATABASE_URL"] = original_url
+
+    # Falha de migração: uma view ocupa o nome de uma tabela esperada.
+    conflict = "pinghub_conflict_" + secrets.token_hex(4)
+    with psycopg.connect(original_url, autocommit=True) as con:
+        con.execute(f'CREATE SCHEMA "{conflict}"')
+        con.execute(f'CREATE VIEW "{conflict}".athletes AS SELECT 1 AS id')
+    previous_schema = APP.DB_SCHEMA
+    APP.DB_SCHEMA = conflict
+    try:
+        try:
+            APP.init_db()
+        except APP.DatabaseInitError as exc:
+            assert conflict in str(exc), exc
+        else:
+            raise AssertionError("init_db deveria falhar com uma view no lugar da tabela")
+    finally:
+        APP.DB_SCHEMA = previous_schema
+        with psycopg.connect(original_url, autocommit=True) as con:
+            con.execute(f'DROP SCHEMA IF EXISTS "{conflict}" CASCADE')
+
+    # Detecta dados em outro schema e aborta antes de criar tabelas vazias.
+    other = "pinghub_other_" + secrets.token_hex(4)
+    with psycopg.connect(original_url, autocommit=True) as con:
+        con.execute(f'CREATE SCHEMA "{other}"')
+    explicit = APP.DB_SCHEMA_EXPLICIT
+    APP.DB_SCHEMA, APP.DB_SCHEMA_EXPLICIT = other, False
+    try:
+        try:
+            APP.init_db()
+        except APP.DatabaseInitError as exc:
+            assert "DB_SCHEMA" in str(exc) and SCHEMA in str(exc), exc
+        else:
+            raise AssertionError("init_db deveria abortar ao achar 'athletes' em outro schema")
+        with psycopg.connect(original_url, autocommit=True) as con:
+            total = con.execute(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = %s",
+                (other,),
+            ).fetchone()[0]
+            assert total == 0, "nenhuma tabela deveria ser criada no schema errado"
+    finally:
+        APP.DB_SCHEMA, APP.DB_SCHEMA_EXPLICIT = previous_schema, explicit
+        with psycopg.connect(original_url, autocommit=True) as con:
+            con.execute(f'DROP SCHEMA IF EXISTS "{other}" CASCADE')
+
+    print("PostgreSQL ok: boot, schema, init repetido/concorrente, dados, falhas seguras, "
+          "autenticação, atletas, busca, ELO, torneio e mesa.")
 finally:
     with psycopg.connect(DATABASE_URL, autocommit=True) as con:
         con.execute("SET search_path = public")

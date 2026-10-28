@@ -6,8 +6,9 @@ services:
     region: virginia
     branch: main
     buildCommand: pip install -r requirements.txt
-    # init-db roda dentro do start porque o pre-deploy não existe no plano free.
-    # O comando é idempotente e não apaga dados.
+    # A aplicação aplica o schema no boot (DB_INIT_ON_START=1), inclusive se a
+    # plataforma executar `gunicorn app:app` diretamente. O start.sh mantém
+    # retries para banco lento e então inicia o Gunicorn. Nada apaga dados.
     startCommand: ./scripts/start.sh
     healthCheckPath: /health
     autoDeployTrigger: commit
@@ -24,6 +25,9 @@ services:
       # Render gera e mantém um segredo aleatório.
       - key: SECRET_KEY
         generateValue: true
+      - key: DB_INIT_ON_START
+        value: "1"
+      # Fallback legado (1ª chamada /api) desligado: o boot é o caminho principal.
       - key: DB_AUTO_INIT
         value: "0"
       - key: TRUSTED_PROXY_COUNT

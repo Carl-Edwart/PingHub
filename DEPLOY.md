@@ -1,7 +1,8 @@
 # PingHub — produção e migração para PostgreSQL
 
-O backend usa **PostgreSQL 16 + psycopg 3**. Ele não conecta a MySQL/MariaDB. O `init-db` cria ou
-completa o esquema PostgreSQL de forma **aditiva**, sem apagar tabelas ou registros. Ele não copia
+O backend usa **PostgreSQL 16 + psycopg 3**. Ele não conecta a MySQL/MariaDB. A aplicação aplica o
+esquema no boot (e o `init-db` faz o mesmo sob demanda) de forma **aditiva**, sem apagar tabelas ou
+registros. Isso é idempotente e usa um advisory lock para múltiplos workers/instâncias. Ele não copia
 dados do MySQL antigo: a migração de dados é um passo separado (veja abaixo).
 
 ## Checklist rápido
@@ -9,8 +10,9 @@ dados do MySQL antigo: a migração de dados é um passo separado (veja abaixo).
 1. `SECRET_KEY` aleatória com 32+ caracteres e `ADMIN_PASSWORD` forte (12+), diferentes entre si.
 2. `DATABASE_URL` PostgreSQL (não MySQL) apontando para o banco de produção.
 3. `PINGHUB_ENV=production` e `TRUSTED_PROXY_COUNT` conforme a plataforma (Render/Railway: `1`).
-4. Rodar `python app.py init-db` antes de liberar tráfego.
-5. Testar `GET /health`, `GET /health/db` e `GET /api/stats`.
+4. Manter `DB_INIT_ON_START=1` (padrão) para aplicar o esquema no boot; `python app.py init-db`
+   faz o mesmo manualmente. Não crie tabelas no painel do Render.
+5. Testar `GET /health`, `GET /health/db`, `GET /api/stats` e as demais rotas de leitura.
 6. Fazer backup depois da validação e manter uma cópia fora da plataforma.
 
 ## Variáveis de ambiente
@@ -24,7 +26,9 @@ dados do MySQL antigo: a migração de dados é um passo separado (veja abaixo).
 | `PINGHUB_ENV` | recomendada | use `production` em produção |
 | `PORT` | plataforma | Render/Railway injetam automaticamente |
 | `TRUSTED_PROXY_COUNT` | recomendada | número de proxies confiáveis à frente do app (1 em Render/Railway) |
-| `DB_AUTO_INIT` | não | desligado por padrão em produção; o deploy roda `init-db` |
+| `DB_SCHEMA` | não | schema das tabelas (padrão `public`); defina apenas se os dados já estiverem em outro schema |
+| `DB_INIT_ON_START` | não | aplica o esquema no boot (padrão `1`); funciona com `gunicorn app:app` direto |
+| `DB_AUTO_INIT` | não | fallback legado desligado por padrão em produção; inicializa na 1ª chamada `/api` |
 | `ADMIN_TOKEN_HOURS` | não | validade do token admin (12 h por padrão) |
 | `ADMIN_LOGIN_WINDOW`, `ADMIN_LOGIN_MAX` | não | janela e limite de tentativas de login (900 s / 5) |
 | `WEB_CONCURRENCY`, `GUNICORN_THREADS` | não | 1 worker e 8 threads por padrão |
@@ -41,9 +45,14 @@ python3 -c "import secrets; print(secrets.token_urlsafe(48))"
 
 ## Deploy no Render (recomendado)
 
-O `render.yaml` declara o serviço web, o PostgreSQL, o health check e as variáveis. O comando de
-início é `scripts/start.sh`, que roda `python app.py init-db` (com retry) e depois o Gunicorn. Isso
-funciona no plano free, onde o **pre-deploy command não está disponível**.
+O `render.yaml` declara o serviço web, o PostgreSQL, o health check e as variáveis. A aplicação
+aplica o schema no boot (`DB_INIT_ON_START=1`), inclusive quando a plataforma executa
+`gunicorn app:app` diretamente. O comando de início recomendado é `scripts/start.sh`, que roda
+`python app.py init-db` (com retry para banco lento) e depois o Gunicorn; a inicialização do boot é
+a rede de segurança. Tudo funciona no plano free, onde o **pre-deploy command não está disponível**.
+
+Múltiplos workers e reinícios são seguros: o `init_db()` usa `CREATE ... IF NOT EXISTS`, migrações
+condicionais e um advisory lock transacional. Nenhum caminho executa `DROP TABLE`/`TRUNCATE`.
 
 ### Pelo Blueprint (um clique)
 
@@ -60,8 +69,9 @@ funciona no plano free, onde o **pre-deploy command não está disponível**.
 2. **New → Web Service**: conecte o repositório `Carl-Edwart/PingHub`, branch `main`.
 3. Runtime Python, build `pip install -r requirements.txt`, start `./scripts/start.sh`.
 4. Adicione as variáveis da tabela acima; em `DATABASE_URL`, use a connection string interna do
-   banco criado.
-5. Health check: `/health`.
+   banco criado. O comando de start pode ser `./scripts/start.sh` ou `gunicorn app:app`: os dois
+   inicializam o schema no boot.
+5. Health check: `/health`. Não é necessário criar tabelas manualmente.
 
 ### Limitações do plano free
 
@@ -71,8 +81,8 @@ O plano free é útil para demonstração, **não para produção de um clube**:
 - O PostgreSQL free expira **30 dias após a criação** e não oferece backup gerenciado.
 - Há limite de 1 GB de banco e 750 horas de instância por mês.
 
-Antes do vencimento, faça upgrade do banco para um plano pago no painel do Render. Se quiser usar
-pre-deploy no plano pago, troque no `render.yaml`/painel:
+Antes do vencimento, faça upgrade do banco para um plano pago no painel do Render. Se quiser
+antecipar a inicialização no plano pago, o pre-deploy é opcional (o boot já inicializa):
 
 ```yaml
 preDeployCommand: python app.py init-db
@@ -97,10 +107,38 @@ O script confere:
 
 - `GET /health` — processo respondendo.
 - `GET /health/db` — conectividade e existência do esquema; retorna 503 sem detalhes internos.
-- `GET /api/stats` — leitura real pelo Flask/psycopg.
+- `GET /api/stats`, `/api/mesa`, `/api/matches?limit=5` e `/api/ranking` — leituras reais pelo
+  Flask/psycopg, que falham com 503 se o schema estiver ausente.
 
 Teste também o login admin, o cadastro de um atleta, uma partida e o ranking. Em caso de erro,
 veja os logs da plataforma; as mensagens não expõem a `DATABASE_URL`.
+
+## Erro `UndefinedTable` / SQLSTATE 42P01
+
+Esse erro significa que a conexão funcionou, mas as consultas não encontraram as tabelas no
+`search_path` efetivo. A causa típica é o processo subir sem executar `init_db()` (por exemplo,
+`DB_INIT_ON_START=0` e nenhum `init-db` antes do Gunicorn) ou apontar para outro banco/schema.
+
+1. Nos logs, procure `Inicializando schema PostgreSQL`, `Schema efetivo: ...` e
+   `Schema PostgreSQL ... pronto`. O alvo registrado mostra host/porta/banco, nunca a senha.
+2. Confirme que a `DATABASE_URL` do serviço é a do PostgreSQL correto e que `DB_SCHEMA` (padrão
+   `public`) é o schema onde estão os dados.
+3. Reinicie/redeploy o serviço com `DB_INIT_ON_START=1`. A inicialização roda no boot, antes de
+   depender de qualquer requisição HTTP.
+4. Se as tabelas já existem em **outro schema**, defina `DB_SCHEMA` para ele e reinicie. Sem
+   `DB_SCHEMA`, a aplicação aborta em vez de criar tabelas vazias em `public`; não copie nem apague
+   dados manualmente.
+5. Só use `python app.py init-db` como diagnóstico/execução manual. Ele é idempotente e aditivo.
+
+## Inicializar um banco existente sem perder dados
+
+- **Banco vazio:** basta fazer deploy/reiniciar. O boot cria as 8 tabelas, colunas e índices.
+- **Banco já com o esquema do PingHub:** nenhuma ação especial; o boot adiciona apenas colunas e
+  índices que faltam. Faça backup antes de qualquer atualização relevante.
+- **Dados em outro schema:** configure `DB_SCHEMA` com esse schema. A aplicação usa exatamente
+  esse valor em todas as conexões e não cria duplicatas em `public`.
+- **Nunca** execute `DROP TABLE`, `TRUNCATE` ou recrie tabelas para "corrigir" o 42P01. Se houver
+  dúvida, faça backup com `scripts/backup_db.sh` e valide a restauração antes de mudar variáveis.
 
 ## Migração de dados MySQL → PostgreSQL
 

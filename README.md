@@ -42,8 +42,10 @@ pip install -r requirements.txt
 PINGHUB_ENV=development python app.py
 ```
 
-Em desenvolvimento, as tabelas PostgreSQL são criadas na primeira chamada à API. Para criar o
-esquema antes de subir: `python app.py init-db`.
+Na inicialização — inclusive no boot do Gunicorn — a aplicação aplica o schema e as migrações
+(`DB_INIT_ON_START=1`). O comando `python app.py init-db` faz o mesmo manualmente. As tabelas são
+criadas no schema `public` ou no valor de `DB_SCHEMA`; a inicialização é idempotente, usa advisory
+lock entre workers e não apaga dados.
 
 ## Estrutura
 
@@ -57,11 +59,11 @@ test_postgres.py       teste de integração real (schema temporário, banco des
 gunicorn.conf.py       configuração do servidor de produção
 render.yaml            Blueprint do Render (web + PostgreSQL)
 railway.json           configuração alternativa do Railway
-scripts/start.sh       init-db idempotente + Gunicorn (usado no deploy)
+scripts/start.sh       init-db com retry + Gunicorn (usado no deploy)
 scripts/dev_db.sh      PostgreSQL local sem Docker
 scripts/backup_db.sh   backup com pg_dump
 scripts/restore_db.sh  restauração com pg_restore
-scripts/smoke_test.sh  verificação pós-deploy (/health, /health/db, /api/stats)
+scripts/smoke_test.sh  verificação pós-deploy (/health, /health/db e APIs de leitura)
 DEPLOY.md              passo a passo de produção, migração e rollback
 ```
 
@@ -80,8 +82,10 @@ PINGHUB_TEST_DB=1 DATABASE_URL=postgresql://postgres@127.0.0.1:55433/pinghub \
   ./.venv/bin/python test_postgres.py
 ```
 
-O `test_postgres.py` cria um schema temporário, testa a API de ponta a ponta e remove o schema.
-O workflow `.github/workflows/ci.yml` roda os três conjuntos no GitHub Actions.
+O `test_postgres.py` cria um schema temporário vazio, valida a inicialização no boot, a
+reinicialização repetida/concorrente, a preservação dos dados, falhas seguras e a API de ponta a
+ponta; ao final, remove o schema. O workflow `.github/workflows/ci.yml` roda os três conjuntos no
+GitHub Actions.
 
 ## Identidade visual
 
@@ -113,8 +117,8 @@ variáveis no topo do `<style>`. Animações respeitam `prefers-reduced-motion`.
   e a aba **Regras do sistema** (como o ELO, as chaves e o placar funcionam). Tudo editável em
   `conteudo.json`.
 - **Início:** números gerais (atletas, partidas, torneios, sets).
-- Bancos já existentes são atualizados sozinhos (as colunas novas são adicionadas na primeira
-  requisição ou no `init-db`).
+- Bancos já existentes são atualizados sozinhos no boot (as colunas e índices novos são
+  adicionados sem apagar dados); `python app.py init-db` força a atualização manualmente.
 
 ## API (resumo)
 
@@ -169,7 +173,8 @@ PostgreSQL 16 já conectado:
 1. Abra <https://render.com/deploy?repo=https://github.com/Carl-Edwart/PingHub>.
 2. Autorize o GitHub, escolha o workspace e informe uma `ADMIN_PASSWORD` forte.
 3. Confirme a criação. O Render gera a `SECRET_KEY` e injeta a `DATABASE_URL`.
-4. Depois do deploy, rode `./scripts/smoke_test.sh https://SEU-SERVICO.onrender.com`.
+4. A aplicação inicializa o schema sozinha no boot; **não crie tabelas manualmente no painel**.
+5. Depois do deploy, rode `./scripts/smoke_test.sh https://SEU-SERVICO.onrender.com`.
 
 O plano free do Render serve para teste: o serviço hiberna após 15 min sem tráfego e o PostgreSQL
 free **expira em 30 dias** e não tem backup. Para uso real do clube, suba o banco para um plano pago

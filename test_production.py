@@ -22,6 +22,7 @@ GOOD = {
     "SECRET_KEY": SECRET,
     "ADMIN_PASSWORD": ADMIN,
     "DB_AUTO_INIT": "0",
+    "DB_INIT_ON_START": "0",
     "LOG_LEVEL": "CRITICAL",
 }
 BASE = {key: os.environ[key] for key in ("PATH", "PYTHONPATH", "HOME", "LANG", "VIRTUAL_ENV") if key in os.environ}
@@ -109,7 +110,7 @@ def test_valid_config_and_local_defaults():
     local = run(
         "import json, app as A; from urllib.parse import urlsplit; p=urlsplit(A._database_url()); "
         "print(json.dumps([p.hostname,p.port,p.path.strip('/')]))",
-        PINGHUB_ENV="development",
+        PINGHUB_ENV="development", DB_INIT_ON_START="0",
     )
     assert json_output(local) == ["127.0.0.1", 5432, "pinghub"]
 
@@ -128,6 +129,7 @@ def test_dotenv_and_connection_timeout():
     assert json_output(result) == "127.0.0.1"
     timeout = run(
         "import json, app as A; A.psycopg.connect=lambda *a,**k: (a,k); "
+        "A._apply_search_path=lambda con: None; "
         "a,k=A._connect(); print(json.dumps([k['connect_timeout'],a[0].startswith('postgresql://')]))",
         **{**GOOD, "DB_CONNECT_TIMEOUT": "7"},
     )
@@ -138,8 +140,37 @@ def test_cli_and_init_db_errors():
     result = run_app([], **GOOD)
     assert result.returncode != 0 and "gunicorn" in result.stdout + result.stderr
     result = run_app(["init-db"], **GOOD)
-    assert result.returncode != 0
+    assert result.returncode != 0 and "Falha ao inicializar o schema PostgreSQL" in result.stderr
     no_secrets(result.stdout, result.stderr)
+
+
+def test_startup_initialization():
+    """Produção tenta inicializar no boot por padrão; a falha é segura e logada."""
+    result = run(
+        "import app",
+        **{**GOOD, "DB_INIT_ON_START": None, "DB_CONNECT_TIMEOUT": "1"},
+    )
+    assert result.returncode != 0, "produção deveria falhar se o banco não inicializar"
+    assert "Falha ao inicializar o schema PostgreSQL" in result.stderr, result.stderr[-1200:]
+    assert "OperationalError" in result.stderr or "SQLSTATE" in result.stderr
+    no_secrets(result.stdout, result.stderr)
+
+    skipped = run("import app; print('ignorado')", **GOOD)
+    assert skipped.returncode == 0 and "ignorado" in skipped.stdout, skipped.stderr[-800:]
+    no_secrets(skipped.stdout, skipped.stderr)
+
+
+def test_database_target_and_schema_config():
+    target = run("import app as A; print(A._database_target())", **GOOD)
+    assert target.returncode == 0
+    assert "127.0.0.1:1/pinghub" in target.stdout, target.stdout
+    no_secrets(target.stdout, target.stderr)
+
+    for schema in ("public;drop", "a-b", "x" * 64, "pg_catalog", "information_schema"):
+        bad = run("import app", **{**GOOD, "DB_SCHEMA": schema})
+        assert bad.returncode != 0, schema
+        assert "DB_SCHEMA" in bad.stderr, (schema, bad.stderr[-800:])
+        no_secrets(bad.stdout, bad.stderr)
 
 
 def test_health_routes():
@@ -291,6 +322,8 @@ for name, test in (
     ("configuração de produção e defaults locais", test_valid_config_and_local_defaults),
     ("dotenv não sobrescreve ambiente e conexão usa timeout", test_dotenv_and_connection_timeout),
     ("CLI e init-db não expõem credenciais", test_cli_and_init_db_errors),
+    ("inicialização no boot e falha segura", test_startup_initialization),
+    ("alvo de log e validação de DB_SCHEMA", test_database_target_and_schema_config),
     ("health checks e indisponibilidade do banco", test_health_routes),
     ("API retorna erro genérico sem banco", test_api_db_unavailable),
     ("erros internos e falha de commit", test_unexpected_errors_and_commit_failure),
