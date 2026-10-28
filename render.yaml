@@ -1,0 +1,44 @@
+services:
+  - type: web
+    name: pinghub
+    runtime: python
+    plan: free
+    region: virginia
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    # init-db roda dentro do start porque o pre-deploy não existe no plano free.
+    # O comando é idempotente e não apaga dados.
+    startCommand: ./scripts/start.sh
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: PINGHUB_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: pinghub-db
+          property: connectionString
+      # Render solicita este valor no momento da criação do Blueprint.
+      - key: ADMIN_PASSWORD
+        sync: false
+      # Render gera e mantém um segredo aleatório.
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DB_AUTO_INIT
+        value: "0"
+      - key: TRUSTED_PROXY_COUNT
+        value: "1"
+      - key: WEB_CONCURRENCY
+        value: "1"
+      - key: GUNICORN_THREADS
+        value: "8"
+      - key: LOG_LEVEL
+        value: INFO
+
+databases:
+  - name: pinghub-db
+    databaseName: pinghub
+    user: pinghub
+    plan: free
+    region: virginia
+    postgresMajorVersion: "16"

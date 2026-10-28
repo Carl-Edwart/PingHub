@@ -1,157 +1,153 @@
-# PingHub — Guia de produção (Railway ou plataforma equivalente)
+# PingHub — produção e migração para PostgreSQL
 
-Este guia assume o código desta pasta. Itens marcados **[não verificado]** dependem da sua conta/plataforma e não puderam ser testados no ambiente de desenvolvimento do código.
+O backend usa **PostgreSQL 16 + psycopg 3**. Ele não conecta a MySQL/MariaDB. O `init-db` cria ou
+completa o esquema PostgreSQL de forma **aditiva**, sem apagar tabelas ou registros. Ele não copia
+dados do MySQL antigo: a migração de dados é um passo separado (veja abaixo).
 
-## 1. Como a aplicação roda em produção
+## Checklist rápido
 
-| Item | Valor |
-|---|---|
-| Instalação | `pip install -r requirements.txt` (a plataforma faz isso sozinha) |
-| Inicialização | `gunicorn app:app` (lê `gunicorn.conf.py`: `0.0.0.0:$PORT`, 1 worker + 8 threads, logs em stdout) |
-| Esquema do banco | `python app.py init-db` (pre-deploy; só **adiciona** tabelas/colunas, nunca apaga) |
-| Health check | `GET /health` (liveness, não usa o banco) · `GET /health/db` (readiness: banco + esquema) |
-| Desenvolvimento | `./run.sh` (não usar em produção; `python app.py` é recusado fora de `PINGHUB_ENV=development`) |
+1. `SECRET_KEY` aleatória com 32+ caracteres e `ADMIN_PASSWORD` forte (12+), diferentes entre si.
+2. `DATABASE_URL` PostgreSQL (não MySQL) apontando para o banco de produção.
+3. `PINGHUB_ENV=production` e `TRUSTED_PROXY_COUNT` conforme a plataforma (Render/Railway: `1`).
+4. Rodar `python app.py init-db` antes de liberar tráfego.
+5. Testar `GET /health`, `GET /health/db` e `GET /api/stats`.
+6. Fazer backup depois da validação e manter uma cópia fora da plataforma.
 
-`railway.json` já traz `startCommand`, `preDeployCommand` e `healthcheckPath`. Em outra plataforma, use os mesmos comandos.
+## Variáveis de ambiente
 
-**Por que 1 worker?** O limite de tentativas de login fica na memória do processo; com N workers o limite real seria 5×N. As 8 threads atendem o volume de um clube. Para escalar, defina `WEB_CONCURRENCY`, ciente dessa troca.
-
-## 2. Variáveis de ambiente
-
-Cadastre no painel da plataforma. **Não use arquivo `.env` em produção** (e nunca o envie ao Git).
-
-| Variável | Obrigatória | Descrição |
+| Variável | Obrigatória | Observação |
 |---|---|---|
-| `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` | sim (`DB_PORT` padrão 3306) | Banco remoto. Sem valores padrão em produção; senha vazia é recusada |
-| `SECRET_KEY` | sim | ≥ 32 caracteres aleatórios; assina os tokens de admin. Trocar invalida os logins ativos |
-| `ADMIN_PASSWORD` | sim | ≥ 12 caracteres; diferente da `SECRET_KEY` |
-| `PORT` | injetada pela plataforma | Padrão 8000 se ausente |
-| `TRUSTED_PROXY_COUNT` | recomendada | `1` no Railway. Sem isso, atrás do proxy, **todos os visitantes compartilham o mesmo contador de login** (qualquer um bloquearia o admin). Com `0` o `X-Forwarded-For` é ignorado (não dá para forjar) |
-| `PINGHUB_ENV` | não | Deixe **ausente** em produção. `development` só no seu computador |
-| `DB_SSL=true` / `DB_SSL_CA=/caminho/ca.pem` | não | TLS com o banco, se o provedor exigir |
-| `DB_AUTO_INIT` | não | `1` cria o esquema na 1ª requisição (fallback caso o pre-deploy não alcance o banco) |
-| `ADMIN_TOKEN_HOURS`, `ADMIN_LOGIN_WINDOW`, `ADMIN_LOGIN_MAX` | não | 12 h · 900 s · 5 tentativas |
-| `DB_CONNECT_TIMEOUT`, `DB_READ_TIMEOUT`, `LOG_LEVEL`, `GUNICORN_THREADS`, `GUNICORN_TIMEOUT` | não | 10 s · 30 s · INFO · 8 · 60 s |
+| `DATABASE_URL` | sim¹ | URL PostgreSQL da plataforma; nunca use URL MySQL |
+| `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` | sim¹ | alternativa quando não há `DATABASE_URL` |
+| `SECRET_KEY` | sim | 32+ caracteres aleatórios; assina o token admin |
+| `ADMIN_PASSWORD` | sim | 12+ caracteres; senha da área administrativa |
+| `PINGHUB_ENV` | recomendada | use `production` em produção |
+| `PORT` | plataforma | Render/Railway injetam automaticamente |
+| `TRUSTED_PROXY_COUNT` | recomendada | número de proxies confiáveis à frente do app (1 em Render/Railway) |
+| `DB_AUTO_INIT` | não | desligado por padrão em produção; o deploy roda `init-db` |
+| `ADMIN_TOKEN_HOURS` | não | validade do token admin (12 h por padrão) |
+| `ADMIN_LOGIN_WINDOW`, `ADMIN_LOGIN_MAX` | não | janela e limite de tentativas de login (900 s / 5) |
+| `WEB_CONCURRENCY`, `GUNICORN_THREADS` | não | 1 worker e 8 threads por padrão |
+| `LOG_LEVEL` | não | `INFO` por padrão |
 
-Se algo obrigatório faltar ou for fraco/de exemplo, o processo **não sobe** e a mensagem lista os **nomes** das variáveis problemáticas (nunca os valores).
+¹ Use `DATABASE_URL` **ou** o conjunto `DB_*`. Em produção, variáveis ausentes ou segredos
+fracos impedem a inicialização. As mensagens de erro não mostram a URL nem a senha do banco.
 
-Gerar segredos (rode no seu computador e cole no painel; não os guarde em arquivos do repositório):
+Gere segredos localmente:
 
 ```bash
-python3 -c "import secrets; print(secrets.token_urlsafe(48))"   # SECRET_KEY
-python3 -c "import secrets; print(secrets.token_urlsafe(24))"   # ADMIN_PASSWORD
+python3 -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
-## 3. Banco remoto
+## Deploy no Render (recomendado)
 
-**Requisitos:** MySQL 8+ ou MariaDB 10.4+, `utf8mb4`, InnoDB (chaves estrangeiras e `SELECT … FOR UPDATE`), `GET_LOCK`. O código foi escrito para o MariaDB 10.4 local; **a compatibilidade com o MySQL 8 do Railway não foi testada contra um servidor real** (veja a seção 8). No MySQL 8 o PyMySQL precisa do pacote `cryptography` (já incluído via `PyMySQL[rsa]`).
+O `render.yaml` declara o serviço web, o PostgreSQL, o health check e as variáveis. O comando de
+início é `scripts/start.sh`, que roda `python app.py init-db` (com retry) e depois o Gunicorn. Isso
+funciona no plano free, onde o **pre-deploy command não está disponível**.
 
-### 3.1 Railway
-1. No projeto, **+ New → Database → MySQL**. O Railway cria as variáveis `MYSQLHOST`, `MYSQLPORT`, `MYSQLUSER`, `MYSQLPASSWORD`, `MYSQLDATABASE`.
-2. No serviço do PingHub (não no do MySQL), aponte as variáveis do app para o banco por referência:
-   ```
-   DB_HOST=${{MySQL.MYSQLHOST}}
-   DB_PORT=${{MySQL.MYSQLPORT}}
-   DB_USER=${{MySQL.MYSQLUSER}}
-   DB_PASSWORD=${{MySQL.MYSQLPASSWORD}}
-   DB_NAME=${{MySQL.MYSQLDATABASE}}
-   ```
-   (`MySQL` é o nome do serviço do banco no seu projeto; ajuste se for outro.)
+### Pelo Blueprint (um clique)
 
-### 3.2 Usuário da aplicação com permissões mínimas (recomendado)
-O usuário que o Railway cria é o `root`. O app funciona com ele (e registra um aviso), mas o correto é um usuário próprio, restrito ao banco do PingHub. Conecte como administrador (ex.: `railway connect` ou o cliente `mysql` com a URL pública do serviço MySQL **[não verificado]**) e execute, trocando o nome do banco e a senha:
+1. Abra <https://render.com/deploy?repo=https://github.com/Carl-Edwart/PingHub>.
+2. Autorize o GitHub e selecione o workspace.
+3. Informe uma `ADMIN_PASSWORD` forte quando o Render solicitar (`sync: false`).
+4. Confirme a criação. O Render gera a `SECRET_KEY` e injeta a `DATABASE_URL` do banco
+   `pinghub-db`.
+5. Acompanhe o deploy e confira os logs de `init-db` e do Gunicorn.
 
-```sql
-CREATE USER 'pinghub_app'@'%' IDENTIFIED BY '<SENHA_FORTE_GERADA>';
--- DML do dia a dia + DDL só para o init-db criar/adicionar tabelas e colunas. Sem DROP, sem GRANT, sem acesso global.
-GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, REFERENCES ON `railway`.* TO 'pinghub_app'@'%';
+### Pelo painel (manual)
+
+1. **New → PostgreSQL**: crie o banco (PostgreSQL 16), mesma região do serviço.
+2. **New → Web Service**: conecte o repositório `Carl-Edwart/PingHub`, branch `main`.
+3. Runtime Python, build `pip install -r requirements.txt`, start `./scripts/start.sh`.
+4. Adicione as variáveis da tabela acima; em `DATABASE_URL`, use a connection string interna do
+   banco criado.
+5. Health check: `/health`.
+
+### Limitações do plano free
+
+O plano free é útil para demonstração, **não para produção de um clube**:
+
+- O serviço hiberna após 15 minutos sem tráfego (o primeiro acesso demora ~1 min).
+- O PostgreSQL free expira **30 dias após a criação** e não oferece backup gerenciado.
+- Há limite de 1 GB de banco e 750 horas de instância por mês.
+
+Antes do vencimento, faça upgrade do banco para um plano pago no painel do Render. Se quiser usar
+pre-deploy no plano pago, troque no `render.yaml`/painel:
+
+```yaml
+preDeployCommand: python app.py init-db
+startCommand: gunicorn app:app
 ```
 
-Variante ainda mais restrita: rode `init-db` manualmente como administrador e dê ao usuário do app apenas `SELECT, INSERT, UPDATE, DELETE`. Depois, no serviço do PingHub, use `DB_USER=pinghub_app` e `DB_PASSWORD=<a senha acima>` no lugar das referências.
+## Deploy no Railway (alternativa)
 
-### 3.3 Esquema
-`python app.py init-db` roda como pre-deploy a cada deploy. É idempotente e **somente aditivo** (`CREATE TABLE IF NOT EXISTS` + `ADD COLUMN` quando falta); um lock (`GET_LOCK`) impede que duas instâncias disputem o DDL. Mudanças futuras que removam ou renomeiem colunas **não** devem entrar nesse caminho automático: faça-as manualmente, em duas etapas (ver seção 6).
-Se o pre-deploy não alcançar o banco **[não verificado: depende de a rede privada estar disponível nessa fase]**, defina `DB_AUTO_INIT=1` ou rode `init-db` uma vez a partir do seu computador com as variáveis do banco exportadas.
+1. Crie um projeto e um serviço PostgreSQL.
+2. Conecte o repositório; o `railway.json` define `./scripts/start.sh` e o health check `/health`.
+3. Defina `DATABASE_URL` (referência ao PostgreSQL), `SECRET_KEY`, `ADMIN_PASSWORD`,
+   `PINGHUB_ENV=production` e `TRUSTED_PROXY_COUNT=1`.
+4. Faça o deploy e rode o smoke test.
 
-## 4. Publicar no Railway (passo a passo)
-1. Suba este código ao GitHub **depois** da limpeza do versionamento (bloco de comandos `git rm -r --cached` no fim da seção 7).
-2. Railway → **New Project → Deploy from GitHub repo** → escolha `PingHub`.
-3. Adicione o MySQL (3.1) e cadastre as variáveis (seção 2), incluindo `TRUSTED_PROXY_COUNT=1`.
-4. Em **Settings → Networking**, gere um domínio público.
-5. Aguarde o deploy. O `railway.json` define o health check em `/health`.
-6. Verifique:
-   ```bash
-   curl -i https://SEU-DOMINIO/health        # 200 {"status":"ok"}
-   curl -i https://SEU-DOMINIO/health/db     # 200 se banco+esquema OK; 503 {"status":"unavailable"} caso contrário (causa no log)
-   curl -s https://SEU-DOMINIO/api/stats
-   ```
-7. Teste o IP real do limite de login: cometa 5 erros de senha no Admin num aparelho/rede e confirme que outro aparelho/rede ainda consegue tentar (sem 429). Se todos forem bloqueados juntos, o `TRUSTED_PROXY_COUNT` não está correto para o caminho de proxies da plataforma.
-8. Entre em **Admin** com `ADMIN_PASSWORD` e faça uma partida de teste.
+## Verificação pós-deploy
 
-## 5. Custos e limites
-Não presuma gratuidade: o Railway cobra por uso de recursos (CPU/memória/rede, incluindo o serviço de banco), com créditos/planos que mudam. Confira a página de preços e os limites do seu plano antes de publicar. A configuração é padrão (WSGI + MySQL): serve também em Render, Fly.io ou uma VPS com o mesmo comando do Gunicorn; o `railway.json` é específico do Railway e inofensivo nas demais.
-
-## 6. Atualização, rollback e backup
-- **Atualizar:** `git push` na branch conectada → build → pre-deploy (`init-db`) → health check → troca de versão.
-- **Rollback de código:** use **Deployments → Redeploy** de uma versão anterior no painel **[não verificado no seu plano]** ou reverta o commit. Como o esquema só cresce (colunas novas ficam no banco e são ignoradas pelo código antigo), voltar o código é seguro.
-- **Mudanças destrutivas de esquema (futuro):** em duas versões — (1) código que para de usar a coluna; (2) só depois, remoção manual, após backup.
-- **Backup:** não dependa só da plataforma. Rotina mínima (a partir do seu computador, banco remoto acessível):
-  ```bash
-  mysqldump -h HOST -P PORTA -u USUARIO -p --single-transaction --no-tablespaces --skip-lock-tables NOME_DO_BANCO > backup-$(date +%F).sql
-  ```
-  O arquivo contém dados pessoais (nomes, nascimentos, fotos): guarde fora do Git (`*.sql` já é ignorado). Teste a restauração em um banco descartável pelo menos uma vez.
-
-## 7. Migrar os dados locais (XAMPP) com segurança
-
-> Só execute se houver dados locais que você queira manter. Nada aqui é automático e nada foi executado em dados reais.
-
-1. **Backup do local** (o `mysqldump` do XAMPP fica em `/opt/lampp/bin/`):
-   ```bash
-   /opt/lampp/bin/mysqldump -u root --single-transaction --skip-lock-tables pinghub > pinghub-local-completo.sql
-   ```
-2. **Crie o esquema no banco remoto vazio** (deploy normal ou `python app.py init-db` com as variáveis do banco). Isso garante tabelas no formato nativo do MySQL, em vez de importar o DDL do MariaDB.
-3. **Confirme que o remoto está sem dados** que você queira preservar:
-   ```sql
-   SELECT (SELECT COUNT(*) FROM athletes) a, (SELECT COUNT(*) FROM matches) m, (SELECT COUNT(*) FROM tournaments) t;
-   ```
-4. **Exporte só os dados** (sem `DROP`/`CREATE`; `INSERT IGNORE` nunca sobrescreve linhas já existentes):
-   ```bash
-   /opt/lampp/bin/mysqldump -u root --no-create-info --complete-insert --insert-ignore \
-       --single-transaction --skip-lock-tables --skip-triggers pinghub > pinghub-local-dados.sql
-   ```
-5. **Importe no remoto** (conectando direto ao banco, sem passar por terceiros):
-   ```bash
-   mysql -h HOST_PUBLICO -P PORTA -u USUARIO -p NOME_DO_BANCO < pinghub-local-dados.sql
-   ```
-6. **Confira** as contagens (local × remoto) de `athletes`, `matches`, `tournaments`, `tournament_matches`, `elo_history`, e o ranking em `/api/ranking`.
-7. **Nunca** use um dump completo (com `DROP TABLE IF EXISTS`) contra um banco remoto que já tenha dados.
-
-Antes do primeiro `git push` do código novo (limpeza do versionamento — não apaga arquivos do seu disco):
 ```bash
-git rm -r --cached .venv __pycache__      # deixa de versionar; os arquivos continuam na sua pasta
-git status                                 # confira: .env NÃO deve aparecer
-git add -A && git commit -m "Prepara produção: gunicorn, config validada, health, .gitignore"
+./scripts/smoke_test.sh https://SEU-SERVICO.onrender.com
 ```
-O histórico antigo ainda contém o `.venv/` (~1.285 arquivos). Isso só pesa o repositório; reescrever o histórico é opcional e **destrutivo**, então não foi feito.
 
-## 8. Testes
-```bash
-python test_app.py          # lógica de torneios/partidas/ELO com banco simulado (SQLite)
-python test_production.py   # configuração, segurança, health, falhas de banco (sem MySQL)
-```
-**Teste de integração contra MySQL/MariaDB real (faça antes de publicar):**
-```bash
-docker compose up -d                      # MySQL 8 local, somente em 127.0.0.1
-export PINGHUB_ENV=development DB_HOST=127.0.0.1 DB_USER=root DB_PASSWORD=pinghub DB_NAME=pinghub \
-       ADMIN_PASSWORD=uma-senha-de-teste SECRET_KEY=um-segredo-de-teste-qualquer
-python app.py init-db --create-database   # cria banco e tabelas
-python app.py                              # outro terminal: curl nas rotas /api/* e partidas/torneios pelo navegador
-```
-Repita contra um MariaDB 10.4 (seu XAMPP) para comparar os dois motores.
+O script confere:
 
-## 9. Riscos conhecidos e decisões suas
-- **Escrita pública:** `POST /api/matches` e as rotas de `/api/mesa/*` não exigem admin (comportamento original, preservado). Qualquer visitante pode registrar partidas (alterando ELO) ou mexer na fila. Exigir login é uma mudança funcional: decida.
-- **Token de admin** é stateless (12 h) e fica no `localStorage`; "sair" só o apaga no navegador. Não há revogação, a não ser trocar `SECRET_KEY`. O frontend escapa texto com `esc()` (verificado por amostragem, não por auditoria completa).
-- **Limite de login** é por IP e por processo (memória). Sem CSRF porque não há cookies de sessão (o token vai em cabeçalho). Sem CORS (mesma origem).
-- **CSP** não foi adicionada (o `index.html` usa scripts/estilos inline e CDNs; exigiria testes em navegador). O frontend carrega Bootstrap/ícones/fontes de CDN (jsDelivr, Google Fonts): fora do ar, a página perde estilo.
-- `/api/athletes/<id>` e os CSV carregam todas as partidas em memória; ok para um clube, a revisar se o histórico crescer muito.
+- `GET /health` — processo respondendo.
+- `GET /health/db` — conectividade e existência do esquema; retorna 503 sem detalhes internos.
+- `GET /api/stats` — leitura real pelo Flask/psycopg.
+
+Teste também o login admin, o cadastro de um atleta, uma partida e o ranking. Em caso de erro,
+veja os logs da plataforma; as mensagens não expõem a `DATABASE_URL`.
+
+## Migração de dados MySQL → PostgreSQL
+
+Não rode a aplicação apontada para o MySQL antigo e não deixe tráfego de escrita ativo durante a
+cópia final. Faça primeiro um ensaio em um PostgreSQL descartável.
+
+1. Faça e valide um backup do MySQL (estrutura e dados), sem alterar nem apagar a origem.
+2. Crie o PostgreSQL de destino e configure `DATABASE_URL` apenas no ambiente de teste.
+3. Execute `python app.py init-db` para criar o esquema esperado.
+4. Migre os dados com uma ferramenta MySQL→PostgreSQL, mapeando as tabelas `athletes`,
+   `tournaments`, `tournament_players`, `matches`, `tournament_matches`, `elo_history`,
+   `mesa_state` e `mesa_queue`. Preserve IDs e relações; confira datas, JSON dos sets, nulos e os
+   campos `mode`, `modality`, `winner` e `status`.
+5. Depois de importar IDs explícitos, confirme que as sequências `SERIAL` do PostgreSQL avançam
+   além dos maiores IDs importados.
+6. Compare contagens por tabela e valide atletas, ranking/ELO, histórico, resultados e fila. Rode
+   `test_app.py`, `test_production.py` e (em banco descartável) `test_postgres.py`.
+7. Faça backup do destino já migrado e ensaie a restauração. Só então altere a `DATABASE_URL` do
+   serviço, faça o deploy e confira os endpoints de saúde.
+8. Mantenha o MySQL e o backup intactos até o período de observação terminar. Para reverter,
+   restaure o tráfego para o sistema antigo; gravações feitas só no PostgreSQL não aparecem no
+   MySQL.
+
+Não use um dump MySQL diretamente em `pg_restore`: formatos e dialetos são diferentes. Uma
+migração em duas fases (cópia inicial e sincronização final após pausar gravações) reduz a janela
+sem escrita, mas exige sincronização sem duplicar IDs.
+
+## Backup, restauração e rollback
+
+```bash
+export DATABASE_URL='postgresql://...'   # ou configure no .env
+./scripts/backup_db.sh                   # salva em backups/pinghub-AAAAMMDD-HHMMSS.dump
+./scripts/restore_db.sh backups/ARQUIVO.dump
+```
+
+- O backup usa `pg_dump --format=custom` e é verificado com `pg_restore --list`.
+- A restauração pede confirmação e usa `--clean --if-exists`; ela **pode sobrescrever dados**.
+- Guarde backups fora do computador/plataforma e teste a restauração periodicamente.
+- Rollback de deploy: use a opção de rollback do Render/Railway ou faça um novo deploy do commit
+  anterior. Rollback de dados: restaure o dump validado.
+
+## Segurança operacional
+
+- Nunca versione `.env`, dumps, backups ou credenciais. O `.gitignore` já cobre esses arquivos.
+- Use senhas diferentes para banco, `SECRET_KEY` e `ADMIN_PASSWORD`.
+- Mantenha o PostgreSQL sem acesso público quando a plataforma permitir (rede privada).
+- Rode o app atrás de HTTPS; o Render/Railway já fornecem TLS.
+- `TRUSTED_PROXY_COUNT=1` faz o limite de login usar o IP real do cliente; com `0`, o
+  `X-Forwarded-For` é ignorado.
+- Faça backup antes de qualquer migração ou restauração.

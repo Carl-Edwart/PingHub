@@ -9,7 +9,7 @@ import os
 bind = f"0.0.0.0:{os.environ.get('PORT', '8000')}"          # a plataforma injeta PORT
 workers = int(os.environ.get("WEB_CONCURRENCY", "1"))
 threads = int(os.environ.get("GUNICORN_THREADS", "8"))       # threads > 1 => worker gthread
-timeout = int(os.environ.get("GUNICORN_TIMEOUT", "60"))      # > DB_READ_TIMEOUT (30 s)
+timeout = int(os.environ.get("GUNICORN_TIMEOUT", "60"))      # acima do tempo de conexão com o banco
 graceful_timeout = 30
 accesslog = "-"                                              # logs em stdout/stderr (coletados pela plataforma)
 errorlog = "-"

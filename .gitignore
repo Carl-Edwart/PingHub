@@ -1,10 +1,12 @@
-# Segredos e configuração local (NUNCA versionar). O .env.example é o modelo e DEVE ser versionado.
+# Segredos e configuração local (NUNCA versionar).
+# O .env.example é o modelo e DEVE ser versionado.
 .env
 .env.*
 !.env.example
 
 # Python
 .venv/
+.venv*/
 venv/
 env/
 __pycache__/
@@ -16,10 +18,15 @@ __pycache__/
 .coverage
 htmlcov/
 
-# Backups/dumps do banco (podem conter dados pessoais)
+# Banco de dados local e backups/dumps (podem conter dados pessoais)
+.pgdata/
 *.sql
 *.sql.gz
 *.dump
+*.backup
+*.sqlite
+*.sqlite3
+*.db
 backups/
 
 # Sistema / editores
@@ -27,4 +34,11 @@ backups/
 Thumbs.db
 .idea/
 .vscode/
+*.swp
+*.swo
 *.log
+
+# Ferramentas de deploy locais
+.render/
+.vercel/
+node_modules/

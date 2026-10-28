@@ -1,13 +1,13 @@
-# SOMENTE DESENVOLVIMENTO: MySQL local.  docker compose up -d   (o app cria as tabelas sozinho em modo development)
-# A senha abaixo é de exemplo e a porta fica restrita ao seu computador (127.0.0.1). Nunca use isto em produção.
 services:
   db:
-    image: mysql:8
+    image: postgres:16
     environment:
-      MYSQL_ROOT_PASSWORD: pinghub
-      MYSQL_DATABASE: pinghub
-    ports: ["127.0.0.1:3306:3306"]
+      POSTGRES_DB: pinghub
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: pinghub-local-only
+    ports:
+      - "127.0.0.1:5432:5432"
     volumes:
-      - dbdata:/var/lib/mysql
+      - dbdata:/var/lib/postgresql/data
 volumes:
   dbdata:

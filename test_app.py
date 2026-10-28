@@ -1,18 +1,22 @@
-"""Testes da lógica de torneios, partidas, ELO e atletas — banco simulado em SQLite, sem MySQL.  Rodar: python test_app.py"""
+"""Testes da lógica de torneios, partidas, ELO e atletas — SQLite, sem PostgreSQL real.  Rodar: python test_app.py"""
 import sys, types, sqlite3, json, datetime, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-os.environ['PINGHUB_ENV'] = 'development'   # testes usam o modo desenvolvimento (a validação de produção é testada em test_production.py)
 os.environ['ADMIN_PASSWORD'] = 'senha-de-teste'
 os.environ['SECRET_KEY'] = 'segredo-de-teste-somente-para-testes'
 os.environ['ADMIN_TOKEN_HOURS'] = '12'
+os.environ['PINGHUB_ENV'] = 'development'
 
 # --- dependências externas que podem não estar instaladas (só o Flask é necessário) ---
 import types as _t
-for _n in ('pymysql', 'dotenv'):
+for _n in ('psycopg', 'dotenv'):
     try: __import__(_n)
     except ImportError:
         _m = _t.ModuleType(_n); sys.modules[_n] = _m
         if _n == 'dotenv': _m.load_dotenv = lambda *a, **k: None
+        if _n == 'psycopg':
+            _m.connect = lambda *a, **k: None
+            _rows = _t.ModuleType('psycopg.rows'); _rows.dict_row = object()
+            sys.modules['psycopg.rows'] = _rows
 from werkzeug.exceptions import HTTPException as Abort
 
 # --- db falso (SQLite) ---
@@ -26,7 +30,8 @@ CREATE TABLE tournament_matches(id INTEGER PRIMARY KEY AUTOINCREMENT,tournament_
 CREATE TABLE elo_history(id INTEGER PRIMARY KEY AUTOINCREMENT,athlete_id,match_id,delta,elo_after,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
 """)
 def _c(sql, args):
-    return sql.replace('%s', '?').replace(' FOR UPDATE', ''), [a.isoformat() if isinstance(a, datetime.date) else a for a in args]
+    # SQLite não tem ILIKE; o app usa ILIKE no PostgreSQL para busca sem diferenciar maiúsculas.
+    return sql.replace('ILIKE', 'LIKE').replace('%s', '?'), [a.isoformat() if isinstance(a, datetime.date) else a for a in args]
 def q(sql, args=(), one=False):
     s, a = _c(sql, args); cur = con.execute(s, a); return cur.fetchone() if one else cur.fetchall()
 def x(sql, args=()):
@@ -197,7 +202,7 @@ st = APP.stats()
 assert st['athletes'] > 10 and st['matches'] > 10 and st['tournaments'] == 0 and st['active_tournaments'] == 0, st
 print('estatísticas gerais ok')
 
-# ---- servidor: index, conteúdo e isolamento de arquivos sensíveis (sem MySQL) ----
+# ---- servidor: index, conteúdo e isolamento de arquivos sensíveis (sem PostgreSQL real) ----
 APP.jsonify, APP.request = _real
 APP._ready = True
 c = APP.app.test_client()
