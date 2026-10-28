@@ -3,7 +3,7 @@
 Desenvolvimento: PINGHUB_ENV=development python app.py  →  http://localhost:5000
 Produção:        gunicorn app:app  (o schema é aplicado no boot; ver DEPLOY.md)
 """
-import base64, csv, hmac, io, itertools, json, logging, math, os, random, re, sys, threading, time
+import base64, csv, io, itertools, json, logging, math, os, random, re, sys, threading, time
 from datetime import date, datetime
 from decimal import Decimal
 from functools import wraps
@@ -17,6 +17,7 @@ from flask.json.provider import DefaultJSONProvider
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from werkzeug.exceptions import HTTPException
 from werkzeug.middleware.proxy_fix import ProxyFix
+from werkzeug.security import check_password_hash, generate_password_hash
 
 load_dotenv()
 ROOT = Path(__file__).resolve().parent
@@ -36,6 +37,8 @@ class DatabaseInitError(RuntimeError):
 
 _WEAK = {"", "pinghub", "pinghub-local-only", "root", "password", "senha", "admin", "secret", "changeme", "change-me",
          "replace-with-a-strong-password", "replace-with-a-random-secret"}
+ADMIN_PASSWORD_MIN = 12
+ADMIN_PASSWORD_MAX = 256
 
 _raw_schema = (os.getenv("DB_SCHEMA") or "").strip()
 DB_SCHEMA = _raw_schema or "public"
@@ -110,8 +113,10 @@ def validate_config():
         admin = os.getenv("ADMIN_PASSWORD") or ""
         if len(secret) < 32 or _is_weak(secret):
             problems.append("SECRET_KEY precisa ter ao menos 32 caracteres aleatórios.")
-        if len(admin) < 12 or _is_weak(admin):
-            problems.append("ADMIN_PASSWORD precisa ter ao menos 12 caracteres e não pode ser um valor de exemplo.")
+        if admin and not admin.strip():
+            problems.append("ADMIN_PASSWORD não pode ser vazia.")
+        elif admin and _is_weak(admin):
+            problems.append("ADMIN_PASSWORD é um valor de exemplo/fraco. Use uma senha forte.")
         if secret and admin and secret == admin:
             problems.append("SECRET_KEY e ADMIN_PASSWORD devem ser diferentes.")
     return problems
@@ -133,16 +138,46 @@ _login_fails = {}
 _login_lock = threading.Lock()
 
 
-def _admin_password():
-    return os.getenv("ADMIN_PASSWORD", "")
-
-
 def _admin_serializer():
     """Assinador dos tokens administrativos. Sem segredo, a área fica indisponível."""
     secret = os.getenv("SECRET_KEY", "")
     if not secret:
         return None
     return URLSafeTimedSerializer(secret, salt="pinghub-admin")
+
+
+def _admin_bootstrap_password():
+    """Senha inicial vinda do ambiente. Só é usada se ainda não houver hash no banco."""
+    password = os.getenv("ADMIN_PASSWORD", "")
+    return password if password.strip() else ""
+
+
+def _hash_admin_password(password):
+    return generate_password_hash(password, method="scrypt")
+
+
+def _password_matches(stored_hash, password):
+    try:
+        return check_password_hash(stored_hash, password)
+    except (TypeError, ValueError):
+        logging.getLogger("pinghub").error("Hash de senha admin inválido no banco.")
+        return False
+
+
+def _admin_credential():
+    """Credencial admin do banco; cria a partir de ADMIN_PASSWORD somente se não existir."""
+    row = q("SELECT password_hash, auth_version FROM admin_credentials WHERE id=1", one=True)
+    if row is not None:
+        return row
+    password = _admin_bootstrap_password()
+    if not password:
+        return None
+    x("INSERT INTO admin_credentials (id, password_hash, auth_version) VALUES (1, %s, 1) "
+      "ON CONFLICT (id) DO NOTHING", (_hash_admin_password(password),))
+    logging.getLogger("pinghub").info(
+        "Credencial admin inicial criada a partir de ADMIN_PASSWORD; a senha não é armazenada em texto."
+    )
+    return q("SELECT password_hash, auth_version FROM admin_credentials WHERE id=1", one=True)
 
 
 def _is_admin():
@@ -154,7 +189,13 @@ def _is_admin():
         data = serializer.loads(token, max_age=ADMIN_TOKEN_AGE)
     except (BadSignature, SignatureExpired):
         return False
-    return data.get("role") == "admin"
+    if data.get("role") != "admin" or "av" not in data:
+        return False
+    try:
+        row = q("SELECT auth_version FROM admin_credentials WHERE id=1", one=True)
+        return bool(row and int(data["av"]) == int(row["auth_version"]))
+    except (psycopg.Error, TypeError, ValueError):
+        return False
 
 
 def admin_required(fn):
@@ -286,6 +327,13 @@ CREATE TABLE IF NOT EXISTS elo_history (
   FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS admin_credentials (
+  id SMALLINT PRIMARY KEY CHECK (id = 1),
+  password_hash TEXT NOT NULL,                   -- hash scrypt, nunca a senha em texto
+  auth_version INTEGER NOT NULL DEFAULT 1,       -- invalida tokens após trocar a senha
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS mesa_state (
   id SMALLINT PRIMARY KEY,
   occupied_by VARCHAR(100) NULL,
@@ -303,7 +351,7 @@ CREATE TABLE IF NOT EXISTS mesa_queue (
 
 EXPECTED_TABLES = frozenset({
     "athletes", "tournaments", "tournament_players", "matches",
-    "tournament_matches", "elo_history", "mesa_state", "mesa_queue",
+    "tournament_matches", "elo_history", "admin_credentials", "mesa_state", "mesa_queue",
 })
 
 # Chave fixa em 64 bits ("PINGHUB" em ASCII). O advisory lock é por banco e
@@ -319,6 +367,8 @@ MIGRATIONS = [
     ("tournaments", "third_place", "SMALLINT NOT NULL DEFAULT 0"),
     ("tournament_matches", "third_place", "SMALLINT NOT NULL DEFAULT 0"),
     ("matches", "notes", "VARCHAR(200) NULL"),
+    ("admin_credentials", "auth_version", "INTEGER NOT NULL DEFAULT 1"),
+    ("admin_credentials", "updated_at", "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"),
 ]
 
 
@@ -392,16 +442,49 @@ def _connect(**kwargs):
     return con
 
 
+def _ensure_admin_credential(cursor):
+    """Garante a credencial admin. ADMIN_PASSWORD só é usada se ainda não houver hash."""
+    logger = logging.getLogger("pinghub")
+    cursor.execute("SELECT 1 FROM admin_credentials WHERE id=1")
+    if cursor.fetchone():
+        return True
+    password = _admin_bootstrap_password()
+    if not password:
+        logger.warning(
+            "Nenhuma senha de administrador no banco. Defina ADMIN_PASSWORD no primeiro boot; "
+            "depois ela pode ser removida, pois a senha fica salva como hash."
+        )
+        return False
+    cursor.execute(
+        "INSERT INTO admin_credentials (id, password_hash, auth_version) VALUES (1, %s, 1) "
+        "ON CONFLICT (id) DO NOTHING",
+        (_hash_admin_password(password),),
+    )
+    cursor.execute("SELECT 1 FROM admin_credentials WHERE id=1")
+    if not cursor.fetchone():
+        return False
+    if len(password) < ADMIN_PASSWORD_MIN or _is_weak(password):
+        logger.warning(
+            "Credencial admin inicial criada com uma senha curta/fraca. "
+            "Troque-a na área Admin do site."
+        )
+    else:
+        logger.info("Credencial admin inicial criada como hash scrypt; ADMIN_PASSWORD não será reaplicada.")
+    return True
+
+
 def init_db():
     """Cria/atualiza o schema PostgreSQL de forma idempotente, sem apagar dados.
 
     Usa um advisory lock transacional para que múltiplos workers não disputem
     CREATE TABLE/ALTER TABLE ao mesmo tempo. Pode ser chamado repetidamente.
+    Retorna True se já existe uma credencial administrativa no banco.
     """
     logger = logging.getLogger("pinghub")
     target = _database_target()
     logger.info("Inicializando schema PostgreSQL '%s' em %s.", DB_SCHEMA, target)
     con = None
+    has_admin = False
     try:
         con = _connect(row_factory=dict_row)
         with con.cursor() as c:
@@ -454,6 +537,7 @@ def init_db():
                 if not c.fetchone():
                     ddl = ddl.replace("TINYINT", "SMALLINT").replace("DATETIME", "TIMESTAMP")
                     c.execute(f'ALTER TABLE "{table}" ADD COLUMN "{col}" {ddl}')
+            has_admin = _ensure_admin_credential(c)
             c.execute("CREATE INDEX IF NOT EXISTS idx_elo ON athletes (elo)")
             c.execute("CREATE INDEX IF NOT EXISTS idx_created ON matches (created_at)")
             c.execute("CREATE INDEX IF NOT EXISTS idx_ath ON elo_history (athlete_id, created_at)")
@@ -508,6 +592,7 @@ def init_db():
                 logger.warning("Falha ao fechar conexão após init (%s).", type(exc).__name__)
     logger.info("Schema PostgreSQL '%s' pronto em %s (%d tabelas).",
                 DB_SCHEMA, target, len(EXPECTED_TABLES))
+    return has_admin
 
 
 def conn():
@@ -683,15 +768,16 @@ def admin_login():
     ip = _login_ip()
     if _login_blocked(ip):
         abort(429, "Muitas tentativas. Aguarde alguns minutos e tente de novo.")
-    expected = _admin_password()
+    credential = _admin_credential()
     serializer = _admin_serializer()
-    if not expected or not serializer:
-        abort(503, "Administração não configurada. Defina ADMIN_PASSWORD e SECRET_KEY.")
-    if not hmac.compare_digest(str(d.get("password") or "").encode(), expected.encode()):
+    if not credential or not serializer:
+        abort(503, "Administração não configurada. Defina a senha inicial no primeiro boot.")
+    if not _password_matches(credential["password_hash"], str(d.get("password") or "")):
         _login_failed(ip)
         abort(401, "Senha incorreta.")
     _login_ok(ip)
-    resp = jsonify(token=serializer.dumps({"role": "admin"}), expires_in=ADMIN_TOKEN_AGE)
+    token = serializer.dumps({"role": "admin", "av": int(credential["auth_version"])})
+    resp = jsonify(token=token, expires_in=ADMIN_TOKEN_AGE)
     resp.headers["Cache-Control"] = "no-store"
     return resp
 
@@ -699,6 +785,53 @@ def admin_login():
 @api.get("/admin/check")
 def admin_check():
     return jsonify(admin=_is_admin(), expires_in=ADMIN_TOKEN_AGE)
+
+
+def _validate_new_admin_password(new, confirm):
+    if not new:
+        return "Digite a nova senha."
+    if len(new) < ADMIN_PASSWORD_MIN:
+        return f"A nova senha precisa ter ao menos {ADMIN_PASSWORD_MIN} caracteres."
+    if len(new) > ADMIN_PASSWORD_MAX:
+        return f"A nova senha pode ter no máximo {ADMIN_PASSWORD_MAX} caracteres."
+    if new != confirm:
+        return "A confirmação da nova senha não confere."
+    if _is_weak(new):
+        return "Escolha uma senha mais forte (não use valores de exemplo)."
+    return None
+
+
+@api.post("/admin/password")
+@admin_required
+def change_admin_password():
+    """Troca a senha do admin; guarda apenas o hash e invalida tokens antigos."""
+    d = request.get_json(silent=True) or {}
+    current = str(d.get("current_password") or "")
+    new = str(d.get("new_password") or "")
+    confirm = str(d.get("confirm_password") or "")
+    ip = _login_ip()
+    if _login_blocked(ip):
+        abort(429, "Muitas tentativas. Aguarde alguns minutos e tente de novo.")
+    problem = _validate_new_admin_password(new, confirm)
+    if problem:
+        abort(400, problem)
+    credential = _admin_credential()
+    if not credential:
+        abort(503, "Administração não configurada.")
+    if not _password_matches(credential["password_hash"], current):
+        _login_failed(ip)
+        abort(401, "Senha atual incorreta.")
+    if _password_matches(credential["password_hash"], new):
+        abort(400, "A nova senha precisa ser diferente da atual.")
+    _login_ok(ip)
+    version = int(credential["auth_version"]) + 1
+    x("UPDATE admin_credentials SET password_hash=%s, auth_version=%s, updated_at=CURRENT_TIMESTAMP "
+      "WHERE id=1", (_hash_admin_password(new), version))
+    serializer = _admin_serializer()
+    token = serializer.dumps({"role": "admin", "av": version})
+    resp = jsonify(token=token, expires_in=ADMIN_TOKEN_AGE)
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
 
 
 @api.post("/athletes")
@@ -1457,7 +1590,12 @@ def create_app():
     if not _env_bool("DB_INIT_ON_START", True):
         logging.getLogger("pinghub").info("Inicialização no boot desativada (DB_INIT_ON_START=0).")
     elif not _is_init_command():
-        init_db()
+        has_admin = init_db()
+        if not has_admin:
+            raise ConfigError(
+                "Nenhuma senha de administrador configurada no banco. Defina ADMIN_PASSWORD "
+                "no primeiro deploy; depois a senha fica salva como hash e a variável pode ser removida."
+            )
         _ready = True
 
     return app
@@ -1469,9 +1607,12 @@ if __name__ == "__main__":
     command = sys.argv[1] if len(sys.argv) > 1 else "dev"
     if command == "init-db":
         try:
-            init_db()
+            has_admin = init_db()
         except DatabaseInitError as exc:
             sys.exit(str(exc))
+        if not has_admin:
+            print("Aviso: nenhuma senha de administrador configurada. Defina ADMIN_PASSWORD "
+                  "no primeiro boot; depois ela pode ser removida.", file=sys.stderr)
         print("Esquema PostgreSQL pronto; nenhuma tabela ou dado foi removido.")
     elif command == "dev":
         if not IS_DEV:

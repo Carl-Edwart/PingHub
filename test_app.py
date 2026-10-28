@@ -37,6 +37,7 @@ CREATE TABLE tournament_players(tournament_id,athlete_id);
 CREATE TABLE matches(id INTEGER PRIMARY KEY AUTOINCREMENT,player1_id,player2_id,player1_name,player2_name,modality,mode,points_per_set,best_of,sets_json,sets_p1,sets_p2,winner,duration,tournament_id,notes,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE tournament_matches(id INTEGER PRIMARY KEY AUTOINCREMENT,tournament_id,round,position,player1_id,player2_id,winner_id,match_id,status DEFAULT 'waiting',third_place INT DEFAULT 0);
 CREATE TABLE elo_history(id INTEGER PRIMARY KEY AUTOINCREMENT,athlete_id,match_id,delta,elo_after,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE admin_credentials(id INTEGER PRIMARY KEY CHECK (id=1),password_hash TEXT NOT NULL,auth_version INT NOT NULL DEFAULT 1,updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
 """)
 def _c(sql, args):
     # SQLite não tem ILIKE; o app usa ILIKE no PostgreSQL para busca sem diferenciar maiúsculas.
@@ -51,7 +52,9 @@ T = M = A = APP
 _real = (APP.jsonify, APP.request)
 APP.q, APP.x = q, x
 APP.jsonify = lambda *a, **k: (k or (a[0] if a else None))
-ADMIN_TOKEN = APP._admin_serializer().dumps({'role': 'admin'})
+x("INSERT INTO admin_credentials (id, password_hash, auth_version) VALUES (1, %s, 1)",
+  (APP._hash_admin_password(os.environ['ADMIN_PASSWORD']),))
+ADMIN_TOKEN = APP._admin_serializer().dumps({'role': 'admin', 'av': 1})
 import random
 fl = types.SimpleNamespace()
 
@@ -242,6 +245,29 @@ free_match = c.post('/api/matches', json={'player1': {'name': 'Livre 1'}, 'playe
                                           'points_per_set': 3, 'best_of': 1, 'sets': [[3, 1]]})
 assert free_match.status_code == 201, free_match.status_code
 assert c.delete('/api/tournaments/999999', headers=H).status_code == 404
+
+# troca de senha: exige a atual, grava hash e invalida o token anterior
+new_pass = 'nova-senha-forte-2026'
+assert c.post('/api/admin/password', json={'current_password': 'errada', 'new_password': new_pass,
+                                           'confirm_password': new_pass}, headers=H).status_code == 401
+assert c.post('/api/admin/password', json={'current_password': os.environ['ADMIN_PASSWORD'],
+                                           'new_password': 'curta', 'confirm_password': 'curta'},
+              headers=H).status_code == 400
+assert c.post('/api/admin/password', json={'current_password': os.environ['ADMIN_PASSWORD'],
+                                           'new_password': new_pass, 'confirm_password': new_pass + 'x'},
+              headers=H).status_code == 400
+changed = c.post('/api/admin/password', json={'current_password': os.environ['ADMIN_PASSWORD'],
+                                              'new_password': new_pass, 'confirm_password': new_pass},
+                 headers=H)
+assert changed.status_code == 200, changed.status_code
+NEW_TOKEN = changed.get_json()['token']
+assert c.get('/api/admin/check', headers=H).get_json()['admin'] is False
+assert c.get('/api/admin/check', headers={'X-Admin-Token': NEW_TOKEN}).get_json()['admin'] is True
+assert c.post('/api/admin/login', json={'password': os.environ['ADMIN_PASSWORD']}).status_code == 401
+assert c.post('/api/admin/login', json={'password': new_pass}).status_code == 200
+row = q("SELECT password_hash, auth_version FROM admin_credentials WHERE id=1", one=True)
+assert row['auth_version'] == 2 and row['password_hash'].startswith('scrypt:')
+assert new_pass not in row['password_hash']
 
 assert len(c.get('/api/estudo').get_json()) > 0 and set(c.get('/api/regras').get_json()) == {'ittf', 'local', 'sistema'}
 assert all(len(v) >= 6 for v in c.get('/api/regras').get_json().values())

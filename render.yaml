@@ -19,7 +19,9 @@ services:
         fromDatabase:
           name: pinghub-db
           property: connectionString
-      # Render solicita este valor no momento da criação do Blueprint.
+      # Solicitado no primeiro deploy: vira hash no PostgreSQL e não sobrescreve
+      # uma senha já trocada. Depois de trocar em Admin > Trocar senha, pode ser
+      # removido do painel do Render.
       - key: ADMIN_PASSWORD
         sync: false
       # Render gera e mantém um segredo aleatório.

@@ -62,8 +62,15 @@ try:
         assert cur.fetchone()["total"] == len(APP.EXPECTED_TABLES)
 
     # Reinicialização explícita no mesmo schema: idempotente, sem duplicar nada.
-    APP.init_db()
+    assert APP.init_db() is True
     client = APP.app.test_client()
+
+    with APP._connect(row_factory=dict_row) as con, con.cursor() as cur:
+        cur.execute("SELECT password_hash, auth_version FROM admin_credentials WHERE id=1")
+        credential = cur.fetchone()
+        assert credential["password_hash"].startswith("scrypt:"), credential
+        assert os.environ["ADMIN_PASSWORD"] not in credential["password_hash"]
+        assert credential["auth_version"] == 1
 
     assert expect(client.get("/health"))["status"] == "ok"
     assert expect(client.get("/health/db"))["status"] == "ok"
@@ -71,7 +78,8 @@ try:
     assert expect(client.get("/api/ranking")) == []
 
     login = expect(client.post("/api/admin/login", json={"password": os.environ["ADMIN_PASSWORD"]}))
-    admin = {"X-Admin-Token": login["token"]}
+    old_token = login["token"]
+    admin = {"X-Admin-Token": old_token}
     suffix = secrets.token_hex(3)
 
     ana = expect(client.post("/api/athletes", json={"name": f"Atleta Smoke {suffix}"}, headers=admin), 201)
@@ -116,6 +124,40 @@ try:
 
     stats = expect(client.get("/api/stats"))
     assert stats["athletes"] == 2 and stats["matches"] == 2 and stats["tournaments"] == 0, stats
+
+    # Troca de senha: valida a atual, grava hash novo e invalida tokens antigos.
+    new_password = "nova-" + secrets.token_urlsafe(18)
+    expect(client.post("/api/admin/password", json={
+        "current_password": os.environ["ADMIN_PASSWORD"],
+        "new_password": "curta",
+        "confirm_password": "curta",
+    }, headers=admin), 400)
+    expect(client.post("/api/admin/password", json={
+        "current_password": "errada",
+        "new_password": new_password,
+        "confirm_password": new_password,
+    }, headers=admin), 401)
+    expect(client.post("/api/admin/password", json={
+        "current_password": os.environ["ADMIN_PASSWORD"],
+        "new_password": new_password,
+        "confirm_password": new_password + "x",
+    }, headers=admin), 400)
+    changed = expect(client.post("/api/admin/password", json={
+        "current_password": os.environ["ADMIN_PASSWORD"],
+        "new_password": new_password,
+        "confirm_password": new_password,
+    }, headers=admin))
+    admin = {"X-Admin-Token": changed["token"]}
+    assert expect(client.get("/api/admin/check", headers={"X-Admin-Token": old_token}))["admin"] is False
+    assert expect(client.get("/api/admin/check", headers=admin))["admin"] is True
+    expect(client.post("/api/admin/login", json={"password": os.environ["ADMIN_PASSWORD"]}), 401)
+    assert expect(client.post("/api/admin/login", json={"password": new_password}))["token"]
+    with APP._connect(row_factory=dict_row) as con, con.cursor() as cur:
+        cur.execute("SELECT password_hash, auth_version FROM admin_credentials WHERE id=1")
+        credential = cur.fetchone()
+        assert credential["auth_version"] == 2, credential
+        assert credential["password_hash"].startswith("scrypt:"), credential
+        assert new_password not in credential["password_hash"]
 
     # Reinicializações repetidas e concorrentes não podem apagar/duplicar dados.
     def counts():
@@ -192,8 +234,43 @@ try:
         with psycopg.connect(original_url, autocommit=True) as con:
             con.execute(f'DROP SCHEMA IF EXISTS "{other}" CASCADE')
 
-    print("PostgreSQL ok: boot, schema, init repetido/concorrente, dados, falhas seguras, "
-          "autenticação, atletas, busca, ELO, torneio e mesa.")
+    # Bootstrap do admin: ADMIN_PASSWORD só cria a credencial se ainda não houver hash.
+    bootstrap_schema = "pinghub_bootstrap_" + secrets.token_hex(4)
+    base_schema, base_explicit = APP.DB_SCHEMA, APP.DB_SCHEMA_EXPLICIT
+    saved_password = os.environ.get("ADMIN_PASSWORD")
+    APP.DB_SCHEMA, APP.DB_SCHEMA_EXPLICIT = bootstrap_schema, True
+    os.environ.pop("ADMIN_PASSWORD", None)
+    try:
+        assert APP.init_db() is False, "sem senha inicial não deveria criar credencial"
+        with psycopg.connect(original_url, autocommit=True) as con:
+            count = con.execute(
+                f'SELECT COUNT(*) FROM "{bootstrap_schema}".admin_credentials'
+            ).fetchone()[0]
+            assert count == 0
+        legacy = "curta1"  # simula uma senha legada curta, como a já usada no site
+        os.environ["ADMIN_PASSWORD"] = legacy
+        assert APP.init_db() is True
+        with psycopg.connect(original_url, autocommit=True) as con:
+            stored = con.execute(
+                f'SELECT password_hash, auth_version FROM "{bootstrap_schema}".admin_credentials'
+            ).fetchone()
+            assert stored[0].startswith("scrypt:") and legacy not in stored[0], stored
+            assert stored[1] == 1
+        assert expect(client.post("/api/admin/login", json={"password": legacy}))["token"]
+        os.environ.pop("ADMIN_PASSWORD", None)
+        assert APP.init_db() is True, "hash existente deve sobreviver sem ADMIN_PASSWORD"
+    finally:
+        APP.DB_SCHEMA, APP.DB_SCHEMA_EXPLICIT = base_schema, base_explicit
+        if saved_password is None:
+            os.environ.pop("ADMIN_PASSWORD", None)
+        else:
+            os.environ["ADMIN_PASSWORD"] = saved_password
+        with psycopg.connect(original_url, autocommit=True) as con:
+            con.execute(f'DROP SCHEMA IF EXISTS "{bootstrap_schema}" CASCADE')
+
+    print("PostgreSQL ok: boot, schema, credencial hash, troca de senha, tokens, "
+          "init repetido/concorrente, dados, falhas seguras, autenticação, atletas, "
+          "busca, ELO, torneio e mesa.")
 finally:
     with psycopg.connect(DATABASE_URL, autocommit=True) as con:
         con.execute("SET search_path = public")

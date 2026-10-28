@@ -30,9 +30,11 @@ sem precisar de root ou Docker:
 Se já existe um `.env`, não o sobrescreva: atualize nele `DATABASE_URL` (ou as variáveis `DB_*`)
 para o PostgreSQL local e mantenha seus segredos. O `.env.example` serve apenas como modelo.
 
-Antes de subir, defina no `.env` uma `ADMIN_PASSWORD` forte e uma `SECRET_KEY` aleatória. Gere o
-segredo com `python -c "import secrets; print(secrets.token_urlsafe(48))"`. A entrada é feita em
-**Admin** no menu.
+Antes de subir, defina no `.env` uma `ADMIN_PASSWORD` inicial (a senha atual serve) e uma
+`SECRET_KEY` aleatória. Gere o segredo com
+`python -c "import secrets; print(secrets.token_urlsafe(48))"`. No primeiro boot a senha é gravada
+como hash no PostgreSQL; depois disso a variável pode ser removida do ambiente. A entrada e a troca
+de senha ficam em **Admin** no menu.
 
 Manualmente:
 
@@ -43,7 +45,7 @@ PINGHUB_ENV=development python app.py
 ```
 
 Na inicialização — inclusive no boot do Gunicorn — a aplicação aplica o schema e as migrações
-(`DB_INIT_ON_START=1`). O comando `python app.py init-db` faz o mesmo manualmente. As tabelas são
+(`DB_INIT_ON_START=1`). O comando `python app.py init-db` faz o mesmo manualmente. As 9 tabelas são
 criadas no schema `public` ou no valor de `DB_SCHEMA`; a inicialização é idempotente, usa advisory
 lock entre workers e não apaga dados.
 
@@ -131,21 +133,27 @@ variáveis no topo do `<style>`. Animações respeitam `prefers-reduced-motion`.
 | Torneios | `GET/POST /api/tournaments` · `GET/DELETE /api/tournaments/<id>` |
 | Conteúdo | `GET /api/estudo?level=&category=` · `GET /api/regras?q=&category=` |
 | Mesa | `GET /api/mesa` · `POST /api/mesa/occupy` · `/release` · `/queue` · `/next` · `DELETE /api/mesa/queue/<id>` |
-| Administração | `POST /api/admin/login` · `GET /api/admin/check` |
+| Administração | `POST /api/admin/login` · `GET /api/admin/check` · `POST /api/admin/password` |
 | Saúde | `GET /health` · `GET /health/db` |
 
 ## Segurança e permissões
 
 - **Todos (free):** consultar ranking, atletas, histórico, conteúdo e mesa; criar e salvar
   partidas; usar a fila da mesa.
-- **Administrador:** alterar/criar/excluir atletas e criar/excluir torneios.
-- O login usa `ADMIN_PASSWORD` (definida no `.env`) e devolve um token assinado com `SECRET_KEY`,
-  válido por `ADMIN_TOKEN_HOURS` (12 por padrão). O token vai no cabeçalho `X-Admin-Token`; não há
-  cookie de sessão.
+- **Administrador:** alterar/criar/excluir atletas, criar/excluir torneios e trocar a própria senha.
+- A senha admin fica apenas como hash **scrypt** na tabela `admin_credentials`, nunca em texto. No
+  primeiro boot, `ADMIN_PASSWORD` cria esse hash se ainda não existir; depois a variável pode ser
+  removida, pois não sobrescreve uma senha já alterada.
+- O login devolve um token assinado com `SECRET_KEY`, válido por `ADMIN_TOKEN_HOURS` (12 por padrão).
+  O token vai no cabeçalho `X-Admin-Token`; não há cookie de sessão. A troca de senha incrementa a
+  versão da credencial e invalida tokens antigos.
+- A nova senha deve ter 12+ caracteres; a senha inicial pode ser a atual (inclusive curta/legada) e
+  deve ser trocada em **Admin → Trocar senha**. Para recuperar uma senha esquecida, veja
+  [DEPLOY.md](DEPLOY.md#senha-administrativa).
 - `POST /api/admin/login` tem limite de tentativas por IP (`ADMIN_LOGIN_MAX` em
   `ADMIN_LOGIN_WINDOW` segundos; 5 em 15 min por padrão).
-- Sem `ADMIN_PASSWORD` e `SECRET_KEY` a área administrativa fica indisponível. Nunca versionar o
-  `.env`.
+- Sem credencial no banco e sem `ADMIN_PASSWORD` no primeiro boot, ou sem `SECRET_KEY`, a área
+  administrativa fica indisponível. Nunca versionar o `.env`.
 
 ## Regras de negócio
 
@@ -171,10 +179,11 @@ O caminho recomendado é o **Render Blueprint** (`render.yaml`), que cria o serv
 PostgreSQL 16 já conectado:
 
 1. Abra <https://render.com/deploy?repo=https://github.com/Carl-Edwart/PingHub>.
-2. Autorize o GitHub, escolha o workspace e informe uma `ADMIN_PASSWORD` forte.
+2. Autorize o GitHub, escolha o workspace e informe a `ADMIN_PASSWORD` inicial (a senha atual serve).
 3. Confirme a criação. O Render gera a `SECRET_KEY` e injeta a `DATABASE_URL`.
 4. A aplicação inicializa o schema sozinha no boot; **não crie tabelas manualmente no painel**.
-5. Depois do deploy, rode `./scripts/smoke_test.sh https://SEU-SERVICO.onrender.com`.
+5. Depois do deploy, entre em **Admin**, troque a senha e remova `ADMIN_PASSWORD` do painel do
+   Render; rode `./scripts/smoke_test.sh https://SEU-SERVICO.onrender.com`.
 
 O plano free do Render serve para teste: o serviço hiberna após 15 min sem tráfego e o PostgreSQL
 free **expira em 30 dias** e não tem backup. Para uso real do clube, suba o banco para um plano pago

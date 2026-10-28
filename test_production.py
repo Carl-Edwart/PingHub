@@ -27,6 +27,14 @@ GOOD = {
 }
 BASE = {key: os.environ[key] for key in ("PATH", "PYTHONPATH", "HOME", "LANG", "VIRTUAL_ENV") if key in os.environ}
 PRELUDE = "import json, app as A\nc=A.app.test_client()\n"
+ADMIN_STUB = (
+    "PW=A.os.environ['ADMIN_PASSWORD']\n"
+    "CRED={'password_hash':A.generate_password_hash(PW, method='scrypt'),'auth_version':1}\n"
+    "def fake_q(sql,args=(),one=False):\n"
+    " if 'admin_credentials' in sql: return (dict(CRED) if one else [dict(CRED)])\n"
+    " return (None if one else [])\n"
+    "A.q=fake_q\nA.x=lambda *a,**k: None\n"
+)
 results = []
 
 
@@ -70,9 +78,19 @@ def case(name, test):
 def test_required_config():
     result = run("import app")
     assert result.returncode != 0
-    assert all(name in result.stderr for name in ("DATABASE_URL", "SECRET_KEY", "ADMIN_PASSWORD"))
+    assert all(name in result.stderr for name in ("DATABASE_URL", "SECRET_KEY"))
     assert "Configuração inválida" in result.stderr
     no_secrets(result.stdout, result.stderr)
+
+
+def test_admin_env_is_only_bootstrap():
+    result = run("import app; print('sem-admin')", **{**GOOD, "ADMIN_PASSWORD": None})
+    assert result.returncode == 0 and "sem-admin" in result.stdout, result.stderr[-800:]
+    weak = run("import app; print('curta-ok')", **{
+        **GOOD, "ADMIN_PASSWORD": "curta1", "DB_INIT_ON_START": "0",
+    })
+    assert weak.returncode == 0 and "curta-ok" in weak.stdout, weak.stderr[-800:]
+    no_secrets(result.stdout, result.stderr, weak.stdout, weak.stderr)
 
 
 def test_database_url_validation():
@@ -252,7 +270,7 @@ def test_request_validation():
 
 def test_admin_auth_and_rate_limit():
     result = json_output(run(
-        PRELUDE + "o=[]\nfor m,p in (('post','/api/athletes'),('put','/api/athletes/1'),"
+        PRELUDE + ADMIN_STUB + "o=[]\nfor m,p in (('post','/api/athletes'),('put','/api/athletes/1'),"
         "('delete','/api/athletes/1'),('post','/api/tournaments'),('delete','/api/tournaments/1')):\n"
         " o.append(getattr(c,m)(p,json={}).status_code); "
         "o.append(getattr(c,m)(p,json={},headers={'X-Admin-Token':'lixo'}).status_code)\n"
@@ -264,7 +282,7 @@ def test_admin_auth_and_rate_limit():
     ))
     assert result[:10] == [401] * 10 and result[10:] == [True, False, False]
     limited = json_output(run(
-        PRELUDE + "o=[c.post('/api/admin/login',json={'password':'errada'}).status_code for _ in range(5)]\n"
+        PRELUDE + ADMIN_STUB + "o=[c.post('/api/admin/login',json={'password':'errada'}).status_code for _ in range(5)]\n"
         "o.append(c.post('/api/admin/login',json={'password':A.os.environ['ADMIN_PASSWORD']}).status_code)\n"
         "print(json.dumps(o))",
         **GOOD,
@@ -274,7 +292,7 @@ def test_admin_auth_and_rate_limit():
 
 def test_proxy_rate_limit_and_password_logging():
     code = (
-        PRELUDE + "def bad(ip): return c.post('/api/admin/login',json={'password':'errada'},"
+        PRELUDE + ADMIN_STUB + "def bad(ip): return c.post('/api/admin/login',json={'password':'errada'},"
         "headers={'X-Forwarded-For':ip}).status_code\n"
         "a=[bad('1.1.1.1') for _ in range(6)]; b=bad('2.2.2.2'); print(json.dumps([a,b]))"
     )
@@ -283,7 +301,7 @@ def test_proxy_rate_limit_and_password_logging():
     assert trusted == [[401] * 5 + [429], 401]
     assert untrusted == [[401] * 5 + [429], 429]
     result = run(
-        PRELUDE + "c.post('/api/admin/login',json={'password':'tentativa-super-secreta-999'}); print('feito')",
+        PRELUDE + ADMIN_STUB + "c.post('/api/admin/login',json={'password':'tentativa-super-secreta-999'}); print('feito')",
         **{**GOOD, "LOG_LEVEL": "DEBUG"},
     )
     assert "tentativa-super-secreta-999" not in result.stdout + result.stderr
@@ -316,6 +334,7 @@ def test_gunicorn_config():
 
 for name, test in (
     ("produção exige PostgreSQL e segredos fortes", test_required_config),
+    ("ADMIN_PASSWORD é apenas bootstrap e aceita senha legada", test_admin_env_is_only_bootstrap),
     ("rejeita URL MySQL, URLs inválidas e senha fraca", test_database_url_validation),
     ("rejeita placeholders e segredo administrativo repetido", test_secret_validation),
     ("valida configurações numéricas", test_numeric_config),

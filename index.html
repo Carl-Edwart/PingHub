@@ -390,25 +390,59 @@ PH.routes.admin = async () => {
     let status = null;
     try { status = await api('/admin/check'); } catch (e) { /* token inválido/expirado */ }
     if (status?.admin) {
-      render(`<div class="card p-4 mx-auto text-center" style="max-width:520px">
-        <div class="display-5 mb-2 text-success"><i class="bi bi-shield-check"></i></div>
-        <h2 class="ph-title">Administrador conectado</h2>
-        <p class="text-secondary mb-3">Você pode editar atletas e criar ou excluir torneios. Partidas continuam abertas para todos.</p>
+      render(`<div class="card p-4 mx-auto" style="max-width:560px">
+        <div class="text-center">
+          <div class="display-5 mb-2 text-success"><i class="bi bi-shield-check"></i></div>
+          <h2 class="ph-title">Administrador conectado</h2>
+          <p class="text-secondary mb-3">Você pode editar atletas e criar ou excluir torneios. Partidas continuam abertas para todos.</p>
+        </div>
         <div class="d-flex gap-2 justify-content-center flex-wrap"><a href="#/atletas" class="btn btn-ph">Gerenciar atletas</a>
         <a href="#/torneio" class="btn btn-outline-light">Gerenciar torneios</a>
-        <button id="logout" class="btn btn-outline-danger">Sair</button></div></div>`);
+        <button id="logout" class="btn btn-outline-danger">Sair</button></div>
+        <hr>
+        <details class="text-start">
+          <summary class="fw-semibold"><i class="bi bi-key"></i> Trocar senha</summary>
+          <form id="changePass" class="mt-3">
+            <label class="form-label" for="currentPass">Senha atual</label>
+            <input id="currentPass" type="password" class="form-control mb-2" autocomplete="current-password" required>
+            <label class="form-label" for="newPass">Nova senha</label>
+            <input id="newPass" type="password" class="form-control mb-2" autocomplete="new-password" minlength="12" required>
+            <label class="form-label" for="confirmPass">Confirmar nova senha</label>
+            <input id="confirmPass" type="password" class="form-control mb-3" autocomplete="new-password" minlength="12" required>
+            <button type="submit" class="btn btn-ph w-100"><i class="bi bi-shield-check"></i> Salvar nova senha</button>
+            <p class="small text-secondary mt-2 mb-0">Mínimo de 12 caracteres. A senha fica salva como hash no banco e as outras sessões são encerradas.</p>
+          </form>
+        </details>
+      </div>`);
       $('#logout').addEventListener('click', () => { localStorage.removeItem(ADMIN_KEY); toast('Sessão de administrador encerrada.', 'success'); go('#/admin'); });
+      $('#changePass').addEventListener('submit', async e => {
+        e.preventDefault();
+        const current = $('#currentPass').value;
+        const newPass = $('#newPass').value;
+        const confirm = $('#confirmPass').value;
+        if (!current) return toast('Digite a senha atual.');
+        if (newPass.length < 12) return toast('A nova senha precisa ter ao menos 12 caracteres.');
+        if (newPass !== confirm) return toast('A confirmação da nova senha não confere.');
+        try {
+          const r = await api('/admin/password', { method: 'POST', body: {
+            current_password: current, new_password: newPass, confirm_password: confirm,
+          }});
+          localStorage.setItem(ADMIN_KEY, r.token);
+          toast('Senha alterada com sucesso.', 'success');
+          go('#/admin');
+        } catch (e) { toast(e.message); }
+      });
       return;
     }
     localStorage.removeItem(ADMIN_KEY);
   }
   render(`<div class="card p-4 mx-auto" style="max-width:520px"><div class="text-center mb-3">
       <div class="display-5 mb-2"><i class="bi bi-shield-lock"></i></div><h2 class="ph-title m-0">Área do administrador</h2>
-      <p class="text-secondary mb-0">A senha não fica salva no navegador.</p></div>
+      <p class="text-secondary mb-0">A senha não fica salva no navegador; o acesso usa um token temporário.</p></div>
     <label class="form-label" for="adminPass">Senha de administrador</label>
     <input id="adminPass" type="password" class="form-control mb-3" autocomplete="current-password" autofocus>
     <button id="adminLogin" class="btn btn-ph btn-go w-100"><i class="bi bi-box-arrow-in-right"></i> Entrar</button>
-    <p class="small text-secondary mt-3 mb-0">Acesso somente para o dono do PingHub. As demais áreas continuam livres.</p></div>`);
+    <p class="small text-secondary mt-3 mb-0">A senha é verificada como hash no banco. Acesso somente para o dono do PingHub; as demais áreas continuam livres.</p></div>`);
   const enter = async () => {
     const password = $('#adminPass').value;
     if (!password) return toast('Digite a senha.');

@@ -7,7 +7,9 @@ dados do MySQL antigo: a migração de dados é um passo separado (veja abaixo).
 
 ## Checklist rápido
 
-1. `SECRET_KEY` aleatória com 32+ caracteres e `ADMIN_PASSWORD` forte (12+), diferentes entre si.
+1. `SECRET_KEY` aleatória com 32+ caracteres e `ADMIN_PASSWORD` inicial (a senha atual serve),
+   diferentes entre si. A senha pode ter menos de 12 caracteres no primeiro boot; depois troque-a
+   em **Admin → Trocar senha** e remova `ADMIN_PASSWORD` do ambiente.
 2. `DATABASE_URL` PostgreSQL (não MySQL) apontando para o banco de produção.
 3. `PINGHUB_ENV=production` e `TRUSTED_PROXY_COUNT` conforme a plataforma (Render/Railway: `1`).
 4. Manter `DB_INIT_ON_START=1` (padrão) para aplicar o esquema no boot; `python app.py init-db`
@@ -22,7 +24,7 @@ dados do MySQL antigo: a migração de dados é um passo separado (veja abaixo).
 | `DATABASE_URL` | sim¹ | URL PostgreSQL da plataforma; nunca use URL MySQL |
 | `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` | sim¹ | alternativa quando não há `DATABASE_URL` |
 | `SECRET_KEY` | sim | 32+ caracteres aleatórios; assina o token admin |
-| `ADMIN_PASSWORD` | sim | 12+ caracteres; senha da área administrativa |
+| `ADMIN_PASSWORD` | só no 1º boot | senha inicial; vira hash no banco e não sobrescreve senha já trocada. Depois pode ser removida |
 | `PINGHUB_ENV` | recomendada | use `production` em produção |
 | `PORT` | plataforma | Render/Railway injetam automaticamente |
 | `TRUSTED_PROXY_COUNT` | recomendada | número de proxies confiáveis à frente do app (1 em Render/Railway) |
@@ -43,6 +45,33 @@ Gere segredos localmente:
 python3 -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
+## Senha administrativa
+
+A senha não é lida do `.env` a cada login. No primeiro boot, `ADMIN_PASSWORD` é convertida em hash
+**scrypt** e salva em `admin_credentials` (uma única linha, `id=1`). A partir daí:
+
+- o login confere o hash no PostgreSQL;
+- **Admin → Trocar senha** grava um novo hash e invalida os tokens antigos;
+- `ADMIN_PASSWORD` pode ser removida do ambiente e não sobrescreve uma senha já trocada;
+- a nova senha exige 12+ caracteres. A senha inicial pode ser curta/legada, para facilitar a
+  migração do valor que já era usado.
+
+Se a senha for esquecida, não basta trocar `ADMIN_PASSWORD`: é preciso remover a credencial atual e
+deixar o próximo boot criar outra. Com acesso ao PostgreSQL, execute (use o schema configurado em
+`DB_SCHEMA`; o padrão é `public`):
+
+```sql
+DELETE FROM admin_credentials WHERE id = 1;
+```
+
+Se `DB_SCHEMA` não for `public`, qualifique a tabela, por exemplo:
+`DELETE FROM "pinghub".admin_credentials WHERE id = 1;`.
+
+Depois defina `ADMIN_PASSWORD` com uma senha temporária, reinicie o serviço e entre em **Admin**
+para trocá-la. Confirme que o boot registrou `Credencial admin inicial criada`. Remova a variável do
+ambiente ao final. A recuperação não apaga atletas, partidas, torneios nem a mesa; ela apenas
+invalida os tokens administrativos.
+
 ## Deploy no Render (recomendado)
 
 O `render.yaml` declara o serviço web, o PostgreSQL, o health check e as variáveis. A aplicação
@@ -58,10 +87,13 @@ condicionais e um advisory lock transacional. Nenhum caminho executa `DROP TABLE
 
 1. Abra <https://render.com/deploy?repo=https://github.com/Carl-Edwart/PingHub>.
 2. Autorize o GitHub e selecione o workspace.
-3. Informe uma `ADMIN_PASSWORD` forte quando o Render solicitar (`sync: false`).
+3. Informe a `ADMIN_PASSWORD` inicial quando o Render solicitar (`sync: false`). No primeiro boot
+   ela é gravada como hash no PostgreSQL.
 4. Confirme a criação. O Render gera a `SECRET_KEY` e injeta a `DATABASE_URL` do banco
    `pinghub-db`.
 5. Acompanhe o deploy e confira os logs de `init-db` e do Gunicorn.
+6. Entre em **Admin**, troque a senha e remova `ADMIN_PASSWORD` das variáveis do Render. Se a
+   variável voltar a ser definida, ela não altera o hash existente.
 
 ### Pelo painel (manual)
 
@@ -93,8 +125,9 @@ startCommand: gunicorn app:app
 
 1. Crie um projeto e um serviço PostgreSQL.
 2. Conecte o repositório; o `railway.json` define `./scripts/start.sh` e o health check `/health`.
-3. Defina `DATABASE_URL` (referência ao PostgreSQL), `SECRET_KEY`, `ADMIN_PASSWORD`,
-   `PINGHUB_ENV=production` e `TRUSTED_PROXY_COUNT=1`.
+3. Defina `DATABASE_URL` (referência ao PostgreSQL), `SECRET_KEY`, `ADMIN_PASSWORD` inicial,
+   `PINGHUB_ENV=production` e `TRUSTED_PROXY_COUNT=1`. Depois do primeiro login, troque a senha em
+   **Admin** e remova `ADMIN_PASSWORD`.
 4. Faça o deploy e rode o smoke test.
 
 ## Verificação pós-deploy
@@ -132,7 +165,7 @@ Esse erro significa que a conexão funcionou, mas as consultas não encontraram 
 
 ## Inicializar um banco existente sem perder dados
 
-- **Banco vazio:** basta fazer deploy/reiniciar. O boot cria as 8 tabelas, colunas e índices.
+- **Banco vazio:** basta fazer deploy/reiniciar. O boot cria as 9 tabelas, colunas e índices.
 - **Banco já com o esquema do PingHub:** nenhuma ação especial; o boot adiciona apenas colunas e
   índices que faltam. Faça backup antes de qualquer atualização relevante.
 - **Dados em outro schema:** configure `DB_SCHEMA` com esse schema. A aplicação usa exatamente
@@ -151,7 +184,8 @@ cópia final. Faça primeiro um ensaio em um PostgreSQL descartável.
 4. Migre os dados com uma ferramenta MySQL→PostgreSQL, mapeando as tabelas `athletes`,
    `tournaments`, `tournament_players`, `matches`, `tournament_matches`, `elo_history`,
    `mesa_state` e `mesa_queue`. Preserve IDs e relações; confira datas, JSON dos sets, nulos e os
-   campos `mode`, `modality`, `winner` e `status`.
+   campos `mode`, `modality`, `winner` e `status`. A tabela `admin_credentials` não vem do MySQL:
+   ela é criada pelo boot e recebe o hash da senha inicial.
 5. Depois de importar IDs explícitos, confirme que as sequências `SERIAL` do PostgreSQL avançam
    além dos maiores IDs importados.
 6. Compare contagens por tabela e valide atletas, ranking/ELO, histórico, resultados e fila. Rode
@@ -183,7 +217,8 @@ export DATABASE_URL='postgresql://...'   # ou configure no .env
 ## Segurança operacional
 
 - Nunca versione `.env`, dumps, backups ou credenciais. O `.gitignore` já cobre esses arquivos.
-- Use senhas diferentes para banco, `SECRET_KEY` e `ADMIN_PASSWORD`.
+- Use senhas diferentes para banco, `SECRET_KEY` e a senha administrativa. `ADMIN_PASSWORD` serve
+  apenas para o primeiro boot e deve ser removida depois que a senha for trocada em **Admin**.
 - Mantenha o PostgreSQL sem acesso público quando a plataforma permitir (rede privada).
 - Rode o app atrás de HTTPS; o Render/Railway já fornecem TLS.
 - `TRUSTED_PROXY_COUNT=1` faz o limite de login usar o IP real do cliente; com `0`, o
