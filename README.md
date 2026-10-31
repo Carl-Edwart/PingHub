@@ -72,7 +72,7 @@ DEPLOY.md              passo a passo de produção, migração e rollback
 
 Dentro do `app.py` as seções são separadas por banners (`# ==== ATLETAS ====`, `TORNEIOS`,
 `PARTIDAS`…). No `index.html`: `<style>` (paleta em `:root`, componentes, animações) e
-`<script>` (núcleo, atletas, partida, ranking, torneio, info).
+`<script>` (núcleo, atletas, partida, ranking, comparativo, torneio, info).
 
 ## Testes
 
@@ -102,9 +102,16 @@ variáveis no topo do `<style>`. Animações respeitam `prefers-reduced-motion`.
 ## Recursos
 
 - **Atletas:** clube, data de nascimento (idade automática), madeira, borrachas FH/BH e bio.
-  Perfil com gráfico de ELO em verde (subiu) e vermelho (caiu), **valor do ELO visível em cada
-  ponto**, pontos marcados/sofridos, sequência atual e maior sequência, ELO máximo, duração média
-  e rival frequente.
+  Perfil com gráfico de ELO interativo: **zoom** por botões/roda do mouse, **arraste** para
+  navegar, filtros de **30 dias, 90 dias, 1 ano e tudo**, tooltip por ponto e painel com o detalhe
+  completo da partida (adversário, sets, torneio, duração e variação do ELO). O resumo acompanha o
+  período visível; o perfil também mostra pontos marcados/sofridos, sequência atual e maior
+  sequência, ELO máximo, duração média e rival frequente.
+- **Comparativo:** tela dedicada (menu **Comparar** ou `#/comparativo/<a>/<b>`) com seletor de
+  atletas, confronto direto, forma recente, ELO, aproveitamento, sets, pontos, sequências e títulos
+  lado a lado, **adversários em comum** e gráfico de ELO sobreposto com o mesmo zoom e navegação.
+  H2H, forma e adversários em comum consideram partidas competitivas individuais; o gráfico usa
+  apenas as partidas que alteram o ELO.
 - **Partida:** seleção pesquisável de atletas com avatar, ELO e V/D (bottom sheet no celular),
   seletores em botões (modo, modalidade, pontos, melhor de), observações, aviso de *ponto de set*
   e *ponto de partida* (só no modo competitivo), **indicador de posse do saque a partir de 7
@@ -131,7 +138,8 @@ variáveis no topo do `<style>`. Animações respeitam `prefers-reduced-motion`.
 
 | Recurso | Rotas |
 |---|---|
-| Atletas | `GET/POST /api/athletes` · `GET/PUT/DELETE /api/athletes/<id>` · `GET /api/athletes/<id>/photo` |
+| Atletas | `GET/POST /api/athletes` · `GET/PUT/DELETE /api/athletes/<id>` (o `GET` inclui o histórico completo de ELO com os dados de cada partida) · `GET /api/athletes/<id>/photo` |
+| Comparativo | `GET /api/compare?a=<id>&b=<id>` (perfis completos, confronto direto, forma recente e adversários em comum) |
 | Partidas | `POST /api/matches` (vencedor, ELO e avanço do torneio) · `GET /api/matches?limit=&q=` · `PUT /api/matches/<id>` (corrige partida avulsa) |
 | Estatísticas | `GET /api/stats` |
 | Ranking | `GET /api/ranking?q=` · `GET /api/export/ranking.csv` · `GET /api/export/matches.csv` |

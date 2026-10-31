@@ -1050,23 +1050,27 @@ def create_athlete():
 
 
 
-@api.get("/athletes/<int:athlete_id>")
-def get_athlete(athlete_id):
+def _athlete_data(athlete_id):
+    """Perfil completo usado pela tela do atleta e pelo comparativo."""
     a = _get_or_404(athlete_id)
-    rows = q("SELECT m.id, m.created_at, m.mode, m.player1_id, m.player2_id, m.player1_name, m.player2_name, "
-             "m.sets_p1, m.sets_p2, m.winner, m.sets_json, m.duration, m.points_per_set, "
+    rows = q("SELECT m.id, m.created_at, m.mode, m.modality, m.player1_id, m.player2_id, "
+             "m.player1_name, m.player2_name, m.sets_p1, m.sets_p2, m.winner, m.sets_json, "
+             "m.duration, m.points_per_set, m.best_of, m.notes, t.name AS tournament_name, "
              "h.delta AS elo_delta, h.elo_after AS elo_after "
              "FROM matches m LEFT JOIN elo_history h ON h.match_id=m.id AND h.athlete_id=%s "
+             "LEFT JOIN tournaments t ON t.id=m.tournament_id "
              "WHERE m.player1_id=%s OR m.player2_id=%s ORDER BY m.created_at DESC, m.id DESC",
              (athlete_id, athlete_id, athlete_id))
     sets_won = sets_played = pts_for = pts_against = secs = 0
     recent, rivals, results = [], {}, []          # results: mais recente primeiro
+    history = []                                   # histórico de ELO: cronológico
     for m in rows:
         me = 1 if m["player1_id"] == athlete_id else 2
+        opp_id = m["player2_id"] if me == 1 else m["player1_id"]
         mine, theirs = (m["sets_p1"], m["sets_p2"]) if me == 1 else (m["sets_p2"], m["sets_p1"])
         sets_won += mine
         sets_played += mine + theirs
-        sets = json.loads(m["sets_json"]) if isinstance(m["sets_json"], str) else m["sets_json"]
+        sets = _match_sets(m)
         for s in sets:
             pts_for += s[me - 1]
             pts_against += s[2 - me]
@@ -1079,10 +1083,23 @@ def get_athlete(athlete_id):
             r["matches"] += 1
             r["wins"] += res == "W"
         if len(recent) < 15:
-            recent.append({"id": m["id"], "created_at": m["created_at"], "mode": m["mode"], "opponent": opp,
+            recent.append({"id": m["id"], "created_at": m["created_at"], "mode": m["mode"],
+                           "modality": m["modality"], "opponent": opp, "opponent_id": opp_id,
                            "sets_me": mine, "sets_opp": theirs, "result": res,
+                           "sets": [[s[me - 1], s[2 - me]] for s in sets],
                            "duration": m["duration"] or 0, "points_per_set": m["points_per_set"],
-                           "elo_delta": m["elo_delta"], "elo_after": m["elo_after"]})
+                           "best_of": m["best_of"], "tournament": m["tournament_name"],
+                           "notes": m["notes"], "elo_delta": m["elo_delta"], "elo_after": m["elo_after"]})
+        if m["elo_after"] is not None:
+            history.append({"match_id": m["id"], "created_at": m["created_at"],
+                            "elo_after": m["elo_after"], "delta": m["elo_delta"] or 0,
+                            "opponent": opp, "opponent_id": opp_id, "result": res,
+                            "sets_me": mine, "sets_opp": theirs,
+                            "sets": [[s[me - 1], s[2 - me]] for s in sets],
+                            "points_per_set": m["points_per_set"], "best_of": m["best_of"],
+                            "duration": m["duration"] or 0, "tournament": m["tournament_name"],
+                            "notes": m["notes"]})
+    history.reverse()                             # do mais antigo para o mais recente
     best = run = 0
     for r in reversed(results):                  # cronológico
         run = run + 1 if r == "W" else 0
@@ -1093,8 +1110,6 @@ def get_athlete(athlete_id):
         cur = n if results[0] == "W" else -n
     rival = max(rivals.values(), key=lambda r: (r["matches"], r["wins"]), default=None)
     top_elo = q("SELECT MAX(elo_after) AS m FROM elo_history WHERE athlete_id=%s", (athlete_id,), one=True)
-    history = q("SELECT elo_after, delta, created_at FROM elo_history WHERE athlete_id=%s "
-                "ORDER BY id DESC LIMIT 50", (athlete_id,))[::-1]
     tours = q("SELECT t.id, t.name, t.date, t.status, t.champion_id FROM tournaments t "
               "JOIN tournament_players tp ON tp.tournament_id=t.id WHERE tp.athlete_id=%s "
               "ORDER BY t.date DESC", (athlete_id,))
@@ -1106,8 +1121,86 @@ def get_athlete(athlete_id):
              "points_for": pts_for, "points_against": pts_against,
              "avg_duration": round(secs / len(rows)) if rows else 0,
              "streak": cur, "best_streak": best, "best_elo": max(ELO_INITIAL, (top_elo or {}).get("m") or 0),
+             "elo_matches": len(history),
              "rival": rival if rival and rival["matches"] >= 2 else None}
-    return jsonify(athlete=a, stats=stats, recent=recent, elo_history=history, tournaments=tours, titles=titles)
+    return {"athlete": a, "stats": stats, "recent": recent, "elo_history": history,
+            "tournaments": tours, "titles": titles}
+
+
+@api.get("/athletes/<int:athlete_id>")
+def get_athlete(athlete_id):
+    return jsonify(_athlete_data(athlete_id))
+
+
+@api.get("/compare")
+def compare_athletes():
+    """Comparativo de desempenho e confronto direto entre dois atletas."""
+    try:
+        a_id = int(request.args.get("a", ""))
+        b_id = int(request.args.get("b", ""))
+    except (TypeError, ValueError):
+        abort(400, "Informe dois atletas para comparar.")
+    if a_id == b_id:
+        abort(400, "Escolha dois atletas diferentes.")
+    a_data = _athlete_data(a_id)
+    b_data = _athlete_data(b_id)
+    rows = q("""SELECT m.id, m.created_at, m.player1_id, m.player2_id, m.player1_name, m.player2_name,
+                       m.sets_p1, m.sets_p2, m.sets_json, m.winner, m.points_per_set, m.best_of,
+                       m.duration, t.name AS tournament_name
+                FROM matches m LEFT JOIN tournaments t ON t.id=m.tournament_id
+                WHERE m.mode='competitive' AND m.modality='singles'
+                  AND (m.player1_id IN (%s,%s) OR m.player2_id IN (%s,%s))
+                ORDER BY m.created_at, m.id""", (a_id, b_id, a_id, b_id))
+    h2h = {"matches": 0, "a_wins": 0, "b_wins": 0, "a_sets": 0, "b_sets": 0,
+           "a_points": 0, "b_points": 0, "recent": []}
+    common, form = {}, {"a": [], "b": []}
+    for m in rows:
+        p1, p2, winner = m["player1_id"], m["player2_id"], m["winner"]
+        if winner not in (1, 2):
+            continue
+        # confronto direto entre os dois atletas
+        if {p1, p2} == {a_id, b_id}:
+            a_side = 1 if p1 == a_id else 2
+            sets = _match_sets(m)
+            a_sets = m["sets_p1"] if a_side == 1 else m["sets_p2"]
+            b_sets = m["sets_p2"] if a_side == 1 else m["sets_p1"]
+            a_points = sum(s[a_side - 1] for s in sets)
+            b_points = sum(s[2 - a_side] for s in sets)
+            h2h["matches"] += 1
+            h2h["a_wins"] += winner == a_side
+            h2h["b_wins"] += winner != a_side
+            h2h["a_sets"] += a_sets
+            h2h["b_sets"] += b_sets
+            h2h["a_points"] += a_points
+            h2h["b_points"] += b_points
+            h2h["recent"].append({
+                "id": m["id"], "created_at": m["created_at"],
+                "winner": "a" if winner == a_side else "b",
+                "a_sets": a_sets, "b_sets": b_sets,
+                "sets": [[s[0], s[1]] if a_side == 1 else [s[1], s[0]] for s in sets],
+                "points_per_set": m["points_per_set"], "best_of": m["best_of"],
+                "duration": m["duration"] or 0, "tournament": m["tournament_name"]})
+        # forma recente e adversários em comum
+        for key, aid in (("a", a_id), ("b", b_id)):
+            if aid not in (p1, p2):
+                continue
+            me = 1 if p1 == aid else 2
+            opp_id = p2 if me == 1 else p1
+            opp_name = m["player2_name"] if me == 1 else m["player1_name"]
+            won = winner == me
+            form[key].append("W" if won else "L")
+            if opp_id and opp_id not in (a_id, b_id):
+                entry = common.setdefault(opp_id, {"id": opp_id, "name": opp_name,
+                                                   "a": {"matches": 0, "wins": 0},
+                                                   "b": {"matches": 0, "wins": 0}})
+                entry["name"] = opp_name
+                entry[key]["matches"] += 1
+                entry[key]["wins"] += int(won)
+    h2h["recent"] = h2h["recent"][-10:][::-1]
+    form = {key: values[-5:][::-1] for key, values in form.items()}
+    common_list = sorted(common.values(),
+                         key=lambda item: (-(item["a"]["matches"] + item["b"]["matches"]), item["name"].lower()))
+    return jsonify(a=a_data, b=b_data, h2h=h2h, common=common_list[:30], form=form)
 
 
 @api.put("/athletes/<int:athlete_id>")

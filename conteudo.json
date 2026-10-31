@@ -586,6 +586,13 @@
    "title": "Correção de partidas",
    "text": "O administrador pode corrigir o placar de uma partida avulsa no Histórico. O PingHub refaz o ELO, as vitórias/derrotas e o gráfico de evolução em ordem cronológica, porque uma partida antiga altera o cálculo das seguintes. Partidas de torneio não podem ser corrigidas para não quebrar a chave.",
    "source": "Regra do PingHub"
+  },
+  {
+   "id": 13,
+   "category": "sistema",
+   "title": "Comparativo de desempenho",
+   "text": "A tela Comparar mostra dois atletas lado a lado, com confronto direto, forma recente, adversários em comum e gráfico de ELO sobreposto. Confronto direto, forma e adversários em comum consideram partidas competitivas individuais; o gráfico usa apenas partidas que alteram o ELO (5 ou mais pontos, dois atletas cadastrados).",
+   "source": "Regra do PingHub"
   }
  ]
 }

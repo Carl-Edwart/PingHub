@@ -257,6 +257,23 @@ listed = next(m for m in M.list_matches() if m['id'] == r['id'])
 assert listed['elo_p1'] < 0 and listed['elo_p2'] > 0, listed
 prof = A.get_athlete(e2)
 assert prof['recent'][0]['id'] == r['id'] and prof['recent'][0]['elo_delta'] > 0, prof['recent'][0]
+hist_entry = prof['elo_history'][-1]
+assert hist_entry['match_id'] == r['id'] and hist_entry['opponent'] == 'Edit1' and hist_entry['result'] == 'W', hist_entry
+assert hist_entry['sets'] == [[11, 9], [11, 7]] and hist_entry['sets_me'] == 2 and hist_entry['sets_opp'] == 0, hist_entry
+assert prof['stats']['elo_matches'] == 1, prof['stats']
+
+# comparativo: perfil completo dos dois lados, confronto direto e forma recente
+APP.request = types.SimpleNamespace(args={'a': str(e1), 'b': str(e2)})
+cmp = A.compare_athletes()
+assert cmp['a']['athlete']['id'] == e1 and cmp['b']['athlete']['id'] == e2, cmp
+assert cmp['h2h']['matches'] == 1 and cmp['h2h']['a_wins'] == 0 and cmp['h2h']['b_wins'] == 1, cmp['h2h']
+assert cmp['h2h']['a_sets'] == 0 and cmp['h2h']['b_sets'] == 2, cmp['h2h']
+assert cmp['h2h']['recent'][0]['winner'] == 'b' and cmp['h2h']['recent'][0]['sets'] == [[9, 11], [7, 11]], cmp['h2h']['recent']
+assert cmp['form'] == {'a': ['L'], 'b': ['W']}, cmp['form']
+APP.request = types.SimpleNamespace(args={'a': str(e1), 'b': str(e1)})
+try: A.compare_athletes(); raise SystemExit('comparativo deveria recusar o mesmo atleta')
+except Abort as e: assert e.code == 400
+print('histórico detalhado e comparativo ok')
 
 # corrigir os pontos também pode transformar uma partida de 3 em 5+ pontos
 r3 = post(M.create_match, {'player1': {'athlete_id': e1}, 'player2': {'athlete_id': e2},
@@ -305,6 +322,17 @@ free_match = c.post('/api/matches', json={'player1': {'name': 'Livre 1'}, 'playe
                                           'points_per_set': 3, 'best_of': 1, 'sets': [[3, 1]]})
 assert free_match.status_code == 201, free_match.status_code
 assert c.delete('/api/tournaments/999999', headers=H).status_code == 404
+
+# comparativo público: dois atletas, mesmo atleta bloqueado e atleta inexistente
+compare = c.get(f'/api/compare?a={e1}&b={e2}')
+assert compare.status_code == 200, compare.status_code
+compare_data = compare.get_json()
+assert compare_data['a']['athlete']['id'] == e1 and compare_data['b']['athlete']['id'] == e2, compare_data
+assert compare_data['h2h']['matches'] >= 1, compare_data['h2h']
+assert compare_data['a']['elo_history'][0]['opponent'] == 'Edit2', compare_data['a']['elo_history']
+assert c.get(f'/api/compare?a={e1}&b={e1}').status_code == 400
+assert c.get('/api/compare?a=999999&b=1').status_code == 404
+assert c.get('/api/compare').status_code == 400
 
 # troca de senha: exige a atual, grava hash e invalida o token anterior
 new_pass = 'nova-senha-forte-2026'

@@ -122,6 +122,18 @@ try:
     assert short["elo"] is None, short
     assert expect(client.get("/api/matches"))[0]["elo_p1"] is None
 
+    # Comparativo: histórico detalhado, confronto direto e forma recente.
+    compare = expect(client.get(f"/api/compare?a={ana['id']}&b={beto['id']}"))
+    assert compare["a"]["athlete"]["id"] == ana["id"] and compare["b"]["athlete"]["id"] == beto["id"], compare
+    assert compare["h2h"]["matches"] == 2 and compare["h2h"]["a_wins"] == 2, compare["h2h"]
+    assert compare["h2h"]["a_sets"] == 2 and compare["h2h"]["b_sets"] == 0, compare["h2h"]
+    assert compare["form"] == {"a": ["W", "W"], "b": ["L", "L"]}, compare["form"]
+    first_elo = compare["a"]["elo_history"][0]
+    assert first_elo["opponent"] == beto["name"] and first_elo["result"] == "W", first_elo
+    assert first_elo["sets"] == [[5, 1]] and first_elo["points_per_set"] == 5, first_elo
+    expect(client.get(f"/api/compare?a={ana['id']}&b={ana['id']}"), 400)
+    expect(client.get("/api/compare?a=999999999&b=1"), 404)
+
     tournament = expect(client.post("/api/tournaments", json={
         "name": f"Torneio Smoke {suffix}",
         "type": "knockout",

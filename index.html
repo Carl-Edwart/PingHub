@@ -156,6 +156,104 @@ a:hover .avatar, .clickable:hover .avatar { transform:scale(1.06); box-shadow:0 
 .ph-chart.has-hover .ph-point.active:not(.hover) .ph-chart-value,
 .ph-chart.has-hover .ph-point:focus:not(.hover) .ph-chart-value { opacity:0; }
 
+/* ===== v4: gráfico interativo + comparativo ===== */
+.elo-toolbar { display:flex; flex-wrap:wrap; gap:.55rem; align-items:center; justify-content:space-between; margin-bottom:.6rem; }
+.elo-periods { display:inline-flex; gap:.2rem; padding:.18rem; border:1px solid var(--line); border-radius:999px; background:var(--bg2); }
+.elo-pill { border:0; background:transparent; color:var(--muted); font-size:.76rem; font-weight:600; padding:.34rem .68rem; border-radius:999px; transition:background .25s, color .25s; }
+.elo-pill:hover { color:var(--text); }
+.elo-pill.active { background:linear-gradient(135deg,#2563eb,#3b82f6); color:#fff; }
+.elo-zoombar { display:flex; gap:.3rem; }
+.elo-zoombar .btn { padding:.28rem .5rem; }
+.elo-chart-wrap { position:relative; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; border-radius:14px; }
+.elo-svg { width:100%; min-width:0; height:auto; max-width:none; margin:0; touch-action:pan-y; cursor:grab; user-select:none; -webkit-user-select:none; }
+.elo-svg:focus-visible { outline:2px solid var(--accent2); outline-offset:2px; }
+.elo-explorer.dragging .elo-svg { cursor:grabbing; }
+.elo-svg path, .elo-svg .ph-chart-dot { opacity:1; animation:none; }
+.elo-seg { fill:none; stroke-width:3; stroke-linecap:round; }
+.elo-line { fill:none; stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round; }
+.elo-crosshair { stroke:rgba(255,255,255,.38); stroke-width:1; stroke-dasharray:4 4; pointer-events:none; }
+.elo-svg .ph-point.near .ph-chart-dot { r:5.5; stroke:#fff; stroke-width:2; }
+.elo-svg .ph-point:focus-visible .ph-chart-dot { stroke:#fff; stroke-width:2; }
+.elo-selected-ring { fill:none; stroke:#fff; stroke-width:2; opacity:.9; pointer-events:none; }
+.elo-tip { position:fixed; z-index:1080; width:max-content; max-width:min(300px,calc(100vw - 24px)); padding:.65rem .8rem; border-radius:12px;
+  border:1px solid var(--line2); background:rgba(13,18,28,.97); box-shadow:0 18px 40px -18px #000; backdrop-filter:blur(8px);
+  pointer-events:none; font-size:.8rem; line-height:1.35; }
+.elo-tip .badge { font-size:.62rem; }
+.elo-legend { display:flex; flex-wrap:wrap; gap:.4rem 1.1rem; align-items:center; font-size:.8rem; font-weight:600; margin-top:.65rem; }
+.elo-legend .pdot { width:.6rem; height:.6rem; margin-right:.35rem; }
+.elo-summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(102px,1fr)); gap:.5rem; margin-top:.65rem; }
+.elo-stat { padding:.55rem .65rem; border:1px solid var(--line); border-radius:10px; background:var(--bg2); min-width:0; }
+.elo-stat span { display:block; color:var(--muted); font-size:.64rem; letter-spacing:.05em; text-transform:uppercase; }
+.elo-stat b { font-family:var(--font-display); font-size:1.05rem; }
+.elo-summary-compare { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:.5rem; grid-column:1 / -1; }
+.elo-summary-card { border:1px solid var(--line); border-radius:12px; background:var(--bg2); padding:.6rem .7rem; }
+.elo-summary-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:.35rem; margin-top:.45rem; }
+.elo-summary-grid span { display:block; color:var(--muted); font-size:.6rem; text-transform:uppercase; letter-spacing:.04em; }
+.elo-summary-grid b { font-size:.88rem; }
+.elo-detail { margin-top:.65rem; }
+.elo-detail-card { border:1px solid var(--line2); border-radius:14px; background:linear-gradient(180deg,var(--surface2),var(--bg2)); padding:.85rem; animation:fadeIn .25s ease both; }
+.elo-detail-card .elo-score { font-family:var(--font-display); font-size:1.6rem; font-weight:700; line-height:1; }
+.elo-detail-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:.5rem; margin-top:.6rem; }
+.elo-detail-grid > div { padding:.45rem .55rem; border:1px solid var(--line); border-radius:9px; background:rgba(255,255,255,.015); }
+.elo-detail-grid small { display:block; color:var(--muted); font-size:.62rem; text-transform:uppercase; letter-spacing:.05em; }
+.elo-hint { margin-top:.55rem; color:var(--muted); font-size:.76rem; }
+.elo-explorer.compare .elo-summary { grid-template-columns:1fr; }
+
+.cmp-duel { display:grid; grid-template-columns:1fr auto 1fr; gap:.75rem; align-items:stretch; margin-bottom:1rem; }
+.cmp-side { --cmp:var(--p1); position:relative; display:flex; flex-direction:column; align-items:center; text-align:center; padding:1rem;
+  border:1px solid var(--line); border-radius:16px; background:linear-gradient(180deg,var(--surface),var(--bg2)); text-decoration:none; color:var(--text);
+  transition:border-color .3s, transform .3s; overflow:hidden; }
+.cmp-side::before { content:""; position:absolute; top:0; left:0; right:0; height:3px; background:var(--cmp); }
+.cmp-side:hover { border-color:var(--cmp); transform:translateY(-2px); color:var(--text); }
+.cmp-side.b { --cmp:var(--p2); }
+.cmp-side .avatar { width:64px; height:64px; font-size:1.5rem; }
+.cmp-side .cmp-name { font-family:var(--font-display); font-size:1.1rem; font-weight:700; margin-top:.5rem; }
+.cmp-side .cmp-nick { color:var(--muted); font-size:.78rem; }
+.cmp-side .cmp-elo { font-family:var(--font-display); font-size:2.1rem; font-weight:700; line-height:1.05; color:var(--cmp); margin-top:.35rem; }
+.cmp-side .cmp-sub { color:var(--muted); font-size:.78rem; }
+.cmp-vs { display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; min-width:140px; padding:.75rem;
+  border:1px solid var(--line); border-radius:16px; background:var(--bg2); }
+.cmp-vs-score { font-family:var(--font-display); font-size:2rem; font-weight:700; display:flex; gap:.5rem; align-items:baseline; line-height:1; }
+.cmp-vs-score .a { color:var(--cmp-a,var(--accent2)); } .cmp-vs-score .b { color:#ffb27a; }
+.cmp-form { display:flex; gap:.25rem; margin-top:.5rem; justify-content:center; }
+.cmp-form span { width:1.35rem; height:1.35rem; display:grid; place-items:center; border-radius:50%; font-size:.63rem; font-weight:700;
+  border:1px solid var(--line2); color:var(--muted); background:var(--surface2); }
+.cmp-form span.w { background:rgba(34,197,94,.16); border-color:rgba(34,197,94,.45); color:var(--ok); }
+.cmp-form span.l { background:rgba(244,91,105,.14); border-color:rgba(244,91,105,.4); color:var(--bad); }
+.cmp-metric { padding:.55rem .15rem; border-bottom:1px solid var(--line); }
+.cmp-metric:last-child { border-bottom:0; }
+.cmp-metric-head { display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:.5rem; }
+.cmp-metric-head .cmp-value { font-family:var(--font-display); font-size:1rem; font-weight:700; }
+.cmp-metric-head .cmp-value.a { text-align:right; }
+.cmp-metric-head .cmp-value.b { text-align:left; }
+.cmp-metric-head .cmp-value.lead-a { color:var(--accent2); }
+.cmp-metric-head .cmp-value.lead-b { color:#ffb27a; }
+.cmp-metric-head .cmp-label { color:var(--muted); font-size:.68rem; text-transform:uppercase; letter-spacing:.06em; text-align:center; white-space:nowrap; }
+.cmp-bar { display:flex; height:6px; border-radius:999px; overflow:hidden; margin-top:.35rem; background:var(--line); }
+.cmp-bar span { display:block; height:100%; transition:width .5s var(--ease); }
+.cmp-bar .a { background:linear-gradient(90deg,#2563eb,#60a5fa); }
+.cmp-bar .b { background:linear-gradient(90deg,#fb923c,#ea580c); }
+.cmp-common-table td, .cmp-common-table th { vertical-align:middle; }
+.cmp-common-side { display:flex; align-items:center; gap:.4rem; justify-content:flex-end; }
+.cmp-common-side.b { justify-content:flex-start; }
+.cmp-common-pct { color:var(--muted); font-size:.72rem; }
+.cmp-common-pct.lead { color:var(--text); font-weight:700; }
+.cmp-h2h-row { display:flex; align-items:center; gap:.55rem; padding:.55rem 0; border-bottom:1px solid var(--line); }
+.cmp-h2h-row:last-child { border-bottom:0; }
+.cmp-h2h-row .date { color:var(--muted); font-size:.74rem; min-width:5.4rem; }
+.cmp-h2h-row .score { font-family:var(--font-display); font-weight:700; white-space:nowrap; }
+.cmp-h2h-row .winner { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+@media (max-width:576px){
+  .elo-summary { grid-template-columns:repeat(2,1fr); }
+  .elo-hint { display:none; }
+  .elo-zoombar .btn { padding:.24rem .45rem; }
+  .cmp-duel { grid-template-columns:1fr; }
+  .cmp-vs { flex-direction:row; gap:.75rem; min-height:0; }
+  .cmp-vs .cmp-form { margin-top:0; }
+  .cmp-vs-score { font-size:1.55rem; }
+}
+
 /* ===== CHAVES ===== */
 .bracket { display:flex; gap:1.5rem; overflow-x:auto; padding-bottom:1rem; }
 .bracket-col { min-width:230px; display:flex; flex-direction:column; justify-content:space-around; gap:1rem; }
@@ -244,6 +342,7 @@ a:hover .avatar, .clickable:hover .avatar { transform:scale(1.06); box-shadow:0 
 .ph-nav .nav-link:hover .bi-lightning-charge { animation:flicker .6s; }
 .ph-nav .nav-link:hover .bi-trophy, .ph-nav .nav-link:hover .bi-journal-text { animation:wobble .7s; }
 .ph-nav .nav-link:hover .bi-bar-chart-line { transform-origin:bottom; animation:rise .6s; }
+.ph-nav .nav-link:hover .bi-arrow-left-right { animation:nudge .6s 2; }
 .ph-nav .nav-link:hover .bi-people { animation:nudge .5s 2; }
 .ph-nav .nav-link:hover .bi-clock-history { transform:rotate(-360deg); transition-duration:.9s; }
 .ph-nav .nav-link:hover .bi-mortarboard { animation:hop .6s; }
@@ -344,6 +443,7 @@ kbd { background:var(--surface2); border:1px solid var(--line2); border-bottom-w
           <li class="nav-item"><a class="nav-link" data-r="partida" href="#/partida"><i class="bi bi-lightning-charge"></i>Partida</a></li>
           <li class="nav-item"><a class="nav-link" data-r="torneio" href="#/torneio"><i class="bi bi-trophy"></i>Torneios</a></li>
           <li class="nav-item"><a class="nav-link" data-r="ranking" href="#/ranking"><i class="bi bi-bar-chart-line"></i>Ranking</a></li>
+          <li class="nav-item"><a class="nav-link" data-r="comparativo" href="#/comparativo"><i class="bi bi-arrow-left-right"></i>Comparar</a></li>
           <li class="nav-item"><a class="nav-link" data-r="atletas" href="#/atletas"><i class="bi bi-people"></i>Atletas</a></li>
           <li class="nav-item"><a class="nav-link" data-r="historico" href="#/historico"><i class="bi bi-clock-history"></i>Histórico</a></li>
           <li class="nav-item"><a class="nav-link" data-r="estudo" href="#/estudo"><i class="bi bi-mortarboard"></i>Estudo</a></li>
@@ -584,56 +684,6 @@ document.addEventListener('click', e => {
   }
 });
 
-// gráfico de ELO: escolhe o ponto mais próximo do cursor (os pontos podem ficar
-// muito juntos em horários de pico), mostra o valor e fecha ao clicar fora.
-function nearestEloPoint(svg, e) {
-  const r = svg.getBoundingClientRect(), vb = svg.viewBox.baseVal;
-  if (!r.width || !r.height) return null;
-  const sx = vb.width / r.width, sy = vb.height / r.height;
-  const px = vb.x + (e.clientX - r.left) * sx, py = vb.y + (e.clientY - r.top) * sy;
-  const max = 14 * Math.max(sx, sy);
-  let best = null, bestD = Infinity;
-  svg.querySelectorAll('.ph-point').forEach(p => {
-    const dot = p.querySelector('.ph-chart-dot');
-    if (!dot) return;
-    const dx = dot.cx.baseVal.value - px, dy = dot.cy.baseVal.value - py, d = dx * dx + dy * dy;
-    if (d < bestD) { bestD = d; best = p; }
-  });
-  return best && bestD <= max * max ? best : null;
-}
-
-document.addEventListener('pointermove', e => {
-  const svg = e.target.closest?.('.ph-chart');
-  const hovered = $$('.ph-point.hover');
-  if (!svg || e.pointerType === 'touch') {
-    hovered.forEach(p => p.classList.remove('hover'));
-    $$('.ph-chart.has-hover').forEach(s => s.classList.remove('has-hover'));
-    return;
-  }
-  const point = nearestEloPoint(svg, e);
-  hovered.forEach(p => { if (p !== point) p.classList.remove('hover'); });
-  if (!point) { svg.classList.remove('has-hover'); return; }
-  point.classList.add('hover');
-  svg.classList.add('has-hover');
-});
-
-document.addEventListener('click', e => {
-  const svg = e.target.closest?.('.ph-chart');
-  const active = $$('.ph-point.active');
-  if (!svg) {
-    active.forEach(p => p.classList.remove('active'));
-    $$('.ph-point:focus').forEach(p => p.blur());
-    return;
-  }
-  const point = nearestEloPoint(svg, e);
-  const wasActive = point?.classList.contains('active');
-  active.forEach(p => p.classList.remove('active'));
-  $$('.ph-point:focus').forEach(p => { if (p !== point) p.blur(); });
-  if (!point) return;
-  if (wasActive) point.blur();
-  else point.classList.add('active');
-});
-
 window.addEventListener('hashchange', route);
 window.addEventListener('DOMContentLoaded', route);
 
@@ -653,110 +703,547 @@ function resizeImage(file, size = 256) {
   });
 }
 
-function eloChart(history) {
-  const entries = [...history]
-    .map(h => ({ ...h, at: new Date(h.created_at).getTime(), value: +h.elo_after, delta: +h.delta || 0 }))
-    .filter(h => Number.isFinite(h.at))
+/* ===== Gráfico de ELO interativo =====
+   SVG desenhado sob demanda com janela de tempo (zoom/pan), tooltip por ponto,
+   filtros de período e painel com o detalhe completo da partida selecionada. */
+const ELO_GEO = { W: 920, H: 320, L: 54, R: 22, T: 22, B: 42 };
+const ELO_PW = ELO_GEO.W - ELO_GEO.L - ELO_GEO.R;
+const ELO_PH = ELO_GEO.H - ELO_GEO.T - ELO_GEO.B;
+
+// Em telas estreitas o SVG usa a largura real do card, para o gráfico inteiro caber
+// sem rolagem horizontal e sem encolher os rótulos dos eixos.
+function eloGeoFor(root) {
+  const width = Math.round(root?.clientWidth || 0);
+  if (width >= 680) return { ...ELO_GEO, PW: ELO_PW, PH: ELO_PH };
+  const W = Math.max(280, width || 320), H = 300, L = 42, R = 16, T = 18, B = 44;
+  return { W, H, L, R, T, B, PW: W - L - R, PH: H - T - B };
+}
+const ELO_UP = '#22c55e', ELO_DOWN = '#f45b69', ELO_FLAT = '#94a3b8';
+const ELO_COLORS = ['#60a5fa', '#fb923c'];
+let ELO_CHART_UID = 0;
+
+const eloColor = d => d > 0 ? ELO_UP : d < 0 ? ELO_DOWN : ELO_FLAT;
+const eloWhen = at => new Date(at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+const signedPts = n => n > 0 ? `+${n}` : String(n);
+
+function eloPoints(entries) {
+  return [...(entries || [])].map(h => ({
+    at: new Date(h.created_at).getTime(),
+    value: Number(h.elo_after),
+    delta: Number(h.delta) || 0,
+    meta: h,
+  })).filter(p => Number.isFinite(p.at) && Number.isFinite(p.value))
     .sort((a, b) => a.at - b.at);
-  if (!entries.length) return '<p class="text-secondary mb-0">Sem partidas ranqueadas ainda.</p>';
+}
 
-  // ponto inicial de 1000 um minuto antes da primeira partida ranqueada
-  const pts = [{ at: entries[0].at - 60_000, value: 1000, delta: 0, initial: true }, ...entries];
-  const values = pts.map(p => p.value);
-  const lo = Math.min(...values), hi = Math.max(...values);
-  const span = Math.max(hi - lo, 10);
-  const pad = Math.max(5, Math.round(span * .12));
-  const step = span <= 40 ? 5 : span <= 100 ? 10 : span <= 200 ? 20 : span <= 500 ? 50 : 100;
-  const yMin = Math.floor((lo - pad) / step) * step;
-  const yMax = Math.ceil((hi + pad) / step) * step || yMin + step;
+function eloWithInitial(points) {
+  if (!points.length) return [];
+  return [{ at: points[0].at - 60_000, value: 1000, delta: 0, meta: null, initial: true }, ...points];
+}
 
-  // largura cresce com o número de partidas para os valores do ELO não se sobrepuserem
-  const W = Math.max(640, 96 + pts.length * 34), H = 230, L = 44, R = 20, T = 20, B = 34;
-  const PW = W - L - R, PH = H - T - B;
-  const tMin = pts[0].at, tMax = pts[pts.length - 1].at;
-  const spanT = Math.max(tMax - tMin, 1);
-  const x = at => L + (at - tMin) / spanT * PW;
-  const y = v => T + (yMax - v) / (yMax - yMin) * PH;
-  const area = `M ${x(tMin).toFixed(1)} ${y(yMin).toFixed(1)} L ` +
-    `${pts.map(p => `${x(p.at).toFixed(1)} ${y(p.value).toFixed(1)}`).join(' L ')} ` +
-    `L ${x(tMax).toFixed(1)} ${y(yMin).toFixed(1)} Z`;
+// shell do gráfico: tanto o perfil (1 série) quanto o comparativo (2 séries) usam o mesmo componente
+function eloChart(history) {
+  if (!eloPoints(history).length) return '<p class="text-secondary mb-0">Sem partidas ranqueadas ainda.</p>';
+  return eloChartShell({});
+}
 
-  // grade horizontal (ELO)
-  const yGrid = Array.from({ length: 5 }, (_, i) => {
-    const v = yMin + (yMax - yMin) * i / 4, yy = y(v);
-    return `<line class="ph-chart-grid" x1="${L}" y1="${yy.toFixed(1)}" x2="${W - R}" y2="${yy.toFixed(1)}"
-        stroke="rgba(255,255,255,.09)" stroke-width="1"/>
-      <text class="ph-chart-axis" x="${L - 8}" y="${(yy + 3.5).toFixed(1)}" text-anchor="end"
-        fill="#8b95b8" font-size="11" font-weight="600">${Math.round(v)}</text>`;
+function eloChartShell(opts = {}) {
+  const compare = !!opts.compare;
+  const legend = opts.legend || `<span class="up">● Subiu</span><span class="down">● Caiu</span>
+    <span class="text-secondary">● Sem alteração</span><span class="ms-auto" data-net></span>`;
+  return `<div class="elo-explorer${compare ? ' compare' : ''}">
+    <div class="elo-toolbar">
+      <div class="elo-periods" role="group" aria-label="Período do gráfico">
+        ${[['30', '30d'], ['90', '90d'], ['365', '1 ano'], ['all', 'Tudo']].map(([v, label]) =>
+          `<button type="button" class="elo-pill${v === 'all' ? ' active' : ''}" data-period="${v}">${label}</button>`).join('')}
+      </div>
+      <div class="elo-zoombar">
+        <button type="button" class="btn btn-sm btn-outline-light" data-zoom="out" aria-label="Diminuir zoom" title="Diminuir zoom"><i class="bi bi-zoom-out"></i></button>
+        <button type="button" class="btn btn-sm btn-outline-light" data-zoom="reset" aria-label="Restaurar visão" title="Restaurar visão"><i class="bi bi-arrows-fullscreen"></i></button>
+        <button type="button" class="btn btn-sm btn-outline-light" data-zoom="in" aria-label="Aumentar zoom" title="Aumentar zoom"><i class="bi bi-zoom-in"></i></button>
+      </div>
+    </div>
+    <div class="elo-chart-wrap">
+      <svg class="ph-chart elo-svg" viewBox="0 0 ${ELO_GEO.W} ${ELO_GEO.H}" tabindex="0" role="img"
+        aria-label="${compare ? 'Comparação da evolução do ELO dos atletas' : 'Evolução cronológica do ELO'}" data-chart-svg></svg>
+    </div>
+    <div class="elo-tip" data-tip role="status" aria-live="polite" hidden></div>
+    <div class="elo-legend" data-legend>${legend}</div>
+    <div class="elo-summary" data-summary></div>
+    <div class="elo-detail" data-detail hidden></div>
+    <div class="elo-hint"><i class="bi bi-hand-index-thumb"></i> Arraste para navegar · roda do mouse ou +/− para zoom · duplo clique restaura · clique num ponto para ver a partida.</div>
+  </div>`;
+}
+
+function eloLowerBound(points, at) {
+  let lo = 0, hi = points.length;
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (points[mid].at < at) lo = mid + 1; else hi = mid; }
+  return lo;
+}
+
+function eloNearest(points, at) {
+  if (!points.length) return -1;
+  const i = eloLowerBound(points, at);
+  if (i <= 0) return 0;
+  if (i >= points.length) return points.length - 1;
+  return Math.abs(points[i - 1].at - at) <= Math.abs(points[i].at - at) ? i - 1 : i;
+}
+
+function eloNiceStep(span) {
+  if (!(span > 0)) return 1;
+  const pow = 10 ** Math.floor(Math.log10(span));
+  const norm = span / pow;
+  return (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * pow;
+}
+
+function eloChartTick(ms, span) {
+  const d = new Date(ms);
+  if (span >= 300 * 864e5) return d.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
+  if (span >= 2 * 864e5) return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  if (span >= 3 * 3600e3) return `${d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+  if (span >= 60e3) return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function eloPointTooltip(series, point) {
+  if (point.initial) {
+    return `<div class="small text-secondary mb-1">${eloWhen(point.at)}</div>
+      <div class="fw-semibold">ELO inicial</div><div class="fs-5 fw-bold">1000</div>`;
+  }
+  const m = point.meta || {};
+  const badge = m.result === 'W' ? '<span class="badge text-bg-success">Vitória</span>'
+    : m.result === 'L' ? '<span class="badge text-bg-danger">Derrota</span>' : '<span class="badge text-bg-secondary">Partida</span>';
+  const score = m.sets?.length ? m.sets.map(s => s.join('-')).join(' · ') : '';
+  return `<div class="d-flex align-items-center justify-content-between gap-2 mb-1">${badge}
+      <small class="text-secondary">${eloWhen(point.at)}</small></div>
+    <div class="fw-semibold mb-1">vs ${esc(m.opponent || '—')}</div>
+    <div class="small mb-1">${m.sets_me ?? '—'} × ${m.sets_opp ?? '—'}${score ? ` <span class="text-secondary">(${score})</span>` : ''}</div>
+    <div class="small">ELO ${point.value - point.delta} → <b>${point.value}</b> ${delta(point.delta)}</div>
+    ${m.tournament ? `<div class="small text-secondary mt-1"><i class="bi bi-trophy"></i> ${esc(m.tournament)}</div>` : ''}`;
+}
+
+function eloCompareTooltip(series, at) {
+  const date = eloWhen(at);
+  const rows = series.map(s => {
+    const idx = eloNearest(s.points, at);
+    if (idx < 0) return '';
+    const p = s.points[idx];
+    return `<div class="d-flex align-items-center gap-2 py-1"><span class="pdot" style="background:${s.color}"></span>
+      <span class="flex-grow-1 text-truncate">${esc(s.name)}</span><b>${p.value}</b>
+      <span class="small">${p.initial ? '' : delta(p.delta)}</span></div>`;
   }).join('');
+  return `<div class="small text-secondary mb-1">${date}</div>${rows}`;
+}
 
-  // grade vertical cronológica
-  const spanMs = tMax - tMin;
-  const fmtTick = ms => {
-    const d = new Date(ms);
-    if (spanMs >= 36 * 3600 * 1000) return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-    if (spanMs >= 6 * 3600 * 1000) {
-      return `${d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} ` +
-             d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    }
-    if (spanMs < 10 * 60 * 1000) {
-      return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    }
-    return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+function initEloExplorer(root, series, opts = {}) {
+  if (!root) return;
+  const svg = $('[data-chart-svg]', root);
+  if (!svg) return;
+  const tip = $('[data-tip]', root);
+  const detail = $('[data-detail]', root);
+  const summary = $('[data-summary]', root);
+  const single = opts.mode !== 'compare';
+  const prepared = series.map((s, i) => ({
+    id: s.id ?? String(i), name: s.name || 'Atleta', color: s.color || ELO_COLORS[i % ELO_COLORS.length],
+    points: eloWithInitial(eloPoints(s.history)),
+  })).filter(s => s.points.length);
+  if (!prepared.length) return;
+
+  // geometria responsiva desta instância (sombreia as constantes padrão do desktop)
+  const G = eloGeoFor(root);
+  const PW = G.PW, PH = G.PH;
+  svg.setAttribute('viewBox', `0 0 ${G.W} ${G.H}`);
+
+  const allTimes = prepared.flatMap(s => s.points.map(p => p.at));
+  const dataStart = Math.min(...allTimes), dataEnd = Math.max(...allTimes);
+  const dataSpan = Math.max(dataEnd - dataStart, 60_000);
+  const edge = Math.max(60_000, dataSpan * .015);
+  const fullStart = dataStart - edge, fullEnd = dataEnd + edge;
+  const state = {
+    period: 'all', domainStart: fullStart, domainEnd: fullEnd,
+    viewStart: fullStart, viewEnd: fullEnd, selected: null, dragging: null,
+    minSpan: Math.max(5_000, dataSpan / 1000),
   };
-  const xGrid = Array.from({ length: 5 }, (_, i) => {
-    const at = tMin + spanMs * i / 4, xx = x(at);
-    const anchor = i === 0 ? 'start' : i === 4 ? 'end' : 'middle';
-    return `<line class="ph-chart-grid" x1="${xx.toFixed(1)}" y1="${T}" x2="${xx.toFixed(1)}" y2="${H - B}"
-        stroke="rgba(255,255,255,.09)" stroke-width="1"/>
-      <text class="ph-chart-axis" x="${xx.toFixed(1)}" y="${H - 10}" text-anchor="${anchor}"
-        fill="#8b95b8" font-size="11" font-weight="600">${fmtTick(at)}</text>`;
-  }).join('');
+  const uid = 'eloClip' + (++ELO_CHART_UID);
+  const span = () => Math.max(state.viewEnd - state.viewStart, 1);
+  const xAt = at => G.L + (at - state.viewStart) / span() * PW;
+  const inView = p => p.at >= state.viewStart && p.at <= state.viewEnd;
+  const timeAtX = clientX => {
+    const rect = svg.getBoundingClientRect();
+    const vx = (clientX - rect.left) * G.W / (rect.width || 1);
+    return state.viewStart + Math.max(0, Math.min(1, (vx - G.L) / PW)) * span();
+  };
+  const pathPoints = points => {
+    let from = eloLowerBound(points, state.viewStart), to = eloLowerBound(points, state.viewEnd);
+    if (from > 0) from--;
+    if (to < points.length) to++;
+    return points.slice(from, Math.max(to, from + 1));
+  };
 
-  const UP = '#22c55e', DOWN = '#f45b69', FLAT = '#94a3b8';
-  const col = d => d > 0 ? UP : d < 0 ? DOWN : FLAT;
-  const net = pts[pts.length - 1].value - 1000;
-  const fillCol = net >= 0 ? UP : DOWN;
+  function setView(start, end) {
+    const domSpan = state.domainEnd - state.domainStart;
+    const minSpan = Math.min(state.minSpan, domSpan);
+    const spanWanted = Math.min(Math.max(end - start, minSpan), domSpan);
+    const mid = (start + end) / 2;
+    let ns = mid - spanWanted / 2, ne = mid + spanWanted / 2;
+    if (ns < state.domainStart) { ne += state.domainStart - ns; ns = state.domainStart; }
+    if (ne > state.domainEnd) { ns -= ne - state.domainEnd; ne = state.domainEnd; }
+    state.viewStart = Math.max(state.domainStart, ns);
+    state.viewEnd = Math.min(state.domainEnd, ne);
+    hideTip();
+    draw();
+  }
 
-  // linha-base do ELO inicial (1000)
-  const base = 1000 >= yMin && 1000 <= yMax
-    ? `<line x1="${L}" y1="${y(1000).toFixed(1)}" x2="${W - R}" y2="${y(1000).toFixed(1)}" stroke="rgba(255,255,255,.3)" stroke-width="1" stroke-dasharray="4 4"/>
-       <text x="${W - R}" y="${(y(1000) - 4).toFixed(1)}" text-anchor="end" fill="#aab5cb" font-size="10" font-weight="600">ELO inicial 1000</text>` : '';
+  function zoomAt(factor, at) {
+    const s = span();
+    const target = Math.max(state.minSpan, Math.min(s * factor, state.domainEnd - state.domainStart));
+    const frac = Math.max(0, Math.min(1, (at - state.viewStart) / s));
+    setView(at - target * frac, at + target * (1 - frac));
+  }
 
-  // cada trecho é verde (subiu), vermelho (caiu) ou cinza (igual)
-  const segs = pts.slice(1).map((p, i) => {
-    const q = pts[i];
-    return `<line class="ph-seg" pathLength="1" x1="${x(q.at).toFixed(1)}" y1="${y(q.value).toFixed(1)}" x2="${x(p.at).toFixed(1)}" y2="${y(p.value).toFixed(1)}"
-      stroke="${col(p.value - q.value)}" style="animation-delay:${(.15 + i * 1.2 / Math.max(pts.length - 1, 1)).toFixed(2)}s"/>`;
-  }).join('');
+  function resetView() {
+    state.selected = null;
+    state.viewStart = state.domainStart;
+    state.viewEnd = state.domainEnd;
+    hideTip();
+    draw();
+  }
 
-  // cada ponto mostra o ELO ao passar o mouse, focar pelo teclado ou tocar/clicar
-  const points = pts.map((p, i) => {
-    const last = i === pts.length - 1;
-    const dt = new Date(p.at).toLocaleString('pt-BR');
-    const diff = p.initial ? 'inicial' : p.delta ? `${p.delta > 0 ? '+' : ''}${p.delta}` : 'sem alteração';
-    const cx = x(p.at), cy = y(p.value), below = cy < T + 16;
-    const anchor = i === 0 ? 'start' : last ? 'end' : 'middle';
-    const label = `<text class="ph-chart-value" x="${cx.toFixed(1)}"
-      y="${(below ? cy + 15 : cy - 8).toFixed(1)}" text-anchor="${anchor}">${p.value}</text>`;
-    const title = esc(`${dt} • ELO ${p.value} (${diff})`);
-    return `<g class="ph-point${last ? ' last' : ''}" tabindex="0" role="button" aria-label="${title}">
-      <circle class="ph-chart-dot${last ? ' last' : ''}" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}"
-        r="${last ? 5 : 3}" fill="${p.initial ? FLAT : col(p.delta)}" stroke="${last ? '#fff' : '#121826'}" stroke-width="${last ? 2 : 1.5}">
-        <title>${title}</title></circle>
-      ${label}
-    </g>`;
-  }).join('');
+  function applyPeriod(period) {
+    state.period = period;
+    const days = period === 'all' ? null : Number(period);
+    state.domainStart = days ? Math.max(fullStart, dataEnd - days * 864e5) : fullStart;
+    state.domainEnd = fullEnd;
+    state.viewStart = state.domainStart;
+    state.viewEnd = state.domainEnd;
+    state.selected = null;
+    hideTip();
+    draw();
+  }
 
-  return `<div class="ph-chart-wrap"><svg class="ph-chart" viewBox="0 0 ${W} ${H}" style="min-width:${W}px" role="group" aria-label="Evolução cronológica do ELO">
-    <defs><linearGradient id="phEloFill" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="${fillCol}" stop-opacity=".28"/><stop offset="100%" stop-color="${fillCol}" stop-opacity="0"/>
-    </linearGradient></defs>
-    <path d="${area}" fill="url(#phEloFill)"/>
-    ${yGrid}${xGrid}${base}${segs}${points}
-  </svg></div>
-  <div class="ph-legend"><span class="up">● Subiu</span><span class="down">● Caiu</span><span class="text-secondary">● Sem alteração</span>
-    <span class="ms-auto ${net > 0 ? 'up' : net < 0 ? 'down' : 'text-secondary'}">Saldo: ${net > 0 ? '+' : ''}${net} pts</span></div>`;
+  function updateControls() {
+    const s = span(), dom = state.domainEnd - state.domainStart;
+    const zin = $('[data-zoom="in"]', root), zout = $('[data-zoom="out"]', root), zreset = $('[data-zoom="reset"]', root);
+    if (zin) zin.disabled = s <= Math.min(state.minSpan, dom) + 1;
+    if (zout) zout.disabled = s >= dom - 1;
+    if (zreset) zreset.disabled = s >= dom - 1;
+    $$('[data-period]', root).forEach(b => b.classList.toggle('active', b.dataset.period === state.period));
+  }
+
+  function renderSummary() {
+    const vals = s => s.points.filter(p => !p.initial && inView(p));
+    const lastAt = s => {
+      const idx = eloLowerBound(s.points, state.viewEnd + 1) - 1;
+      return s.points[Math.max(0, idx)] || null;
+    };
+    if (single) {
+      const pts = vals(prepared[0]);
+      const wins = pts.filter(p => p.meta?.result === 'W').length;
+      const losses = pts.filter(p => p.meta?.result === 'L').length;
+      const net = pts.reduce((sum, p) => sum + p.delta, 0);
+      const last = lastAt(prepared[0]);
+      const values = pts.map(p => p.value);
+      const max = values.length ? Math.max(...values) : null;
+      const min = values.length ? Math.min(...values) : null;
+      summary.innerHTML = `<div class="elo-stat"><span>Partidas</span><b>${pts.length}</b></div>
+        <div class="elo-stat"><span>V / D</span><b>${wins}–${losses}</b></div>
+        <div class="elo-stat"><span>Saldo ELO</span><b class="${net > 0 ? 'up' : net < 0 ? 'down' : ''}">${signedPts(net)}</b></div>
+        <div class="elo-stat"><span>ELO final</span><b>${last ? last.value : '—'}</b></div>
+        <div class="elo-stat"><span>Máx. / Mín.</span><b>${max ?? '—'} / ${min ?? '—'}</b></div>`;
+      const netEl = $('[data-net]', root);
+      if (netEl) netEl.innerHTML = `<span class="${net > 0 ? 'up' : net < 0 ? 'down' : 'text-secondary'}">Saldo no período: ${signedPts(net)} pts</span>`;
+    } else {
+      summary.innerHTML = `<div class="elo-summary-compare">${prepared.map(s => {
+        const pts = vals(s), wins = pts.filter(p => p.meta?.result === 'W').length;
+        const losses = pts.filter(p => p.meta?.result === 'L').length;
+        const net = pts.reduce((sum, p) => sum + p.delta, 0);
+        const last = lastAt(s);
+        return `<div class="elo-summary-card"><div class="d-flex align-items-center gap-2">
+          <span class="pdot" style="background:${s.color}"></span><b class="text-truncate">${esc(s.name)}</b>
+          <span class="ms-auto fs-5 fw-bold">${last ? last.value : '—'}</span></div>
+          <div class="elo-summary-grid">
+            <div><span>Partidas</span><b>${pts.length}</b></div>
+            <div><span>V / D</span><b>${wins}–${losses}</b></div>
+            <div><span>Saldo</span><b class="${net > 0 ? 'up' : net < 0 ? 'down' : ''}">${signedPts(net)}</b></div>
+            <div><span>Máx.</span><b>${pts.length ? Math.max(...pts.map(p => p.value)) : '—'}</b></div>
+          </div></div>`;
+      }).join('')}</div>`;
+    }
+  }
+
+  function renderDetail() {
+    if (!detail) return;
+    if (!state.selected) { detail.hidden = true; detail.innerHTML = ''; return; }
+    const s = prepared[state.selected.s], p = s.points[state.selected.i];
+    if (!p) { detail.hidden = true; return; }
+    if (p.initial) {
+      detail.innerHTML = `<div class="elo-detail-card"><div class="d-flex justify-content-between gap-2">
+        <div><span class="badge text-bg-secondary">Início</span> <small class="text-secondary">${eloWhen(p.at)}</small></div>
+        <button class="btn btn-sm btn-outline-light" data-detail-close aria-label="Fechar detalhe"><i class="bi bi-x-lg"></i></button></div>
+        <div class="elo-score mt-2">1000</div><div class="small text-secondary">ELO inicial antes da primeira partida ranqueada.</div></div>`;
+      detail.hidden = false;
+      return;
+    }
+    const m = p.meta || {};
+    const badge = m.result === 'W' ? '<span class="badge text-bg-success">Vitória</span>'
+      : m.result === 'L' ? '<span class="badge text-bg-danger">Derrota</span>' : '<span class="badge text-bg-secondary">Partida</span>';
+    const opp = m.opponent_id ? `<a href="#/atletas/${m.opponent_id}" class="text-decoration-none">${esc(m.opponent || '—')}</a>` : esc(m.opponent || '—');
+    detail.innerHTML = `<div class="elo-detail-card">
+      <div class="d-flex justify-content-between align-items-start gap-2">
+        <div><div class="d-flex align-items-center gap-2 flex-wrap">${badge}<small class="text-secondary">${eloWhen(p.at)}</small></div>
+          <h6 class="mt-2 mb-0">vs ${opp}${!single ? ` <span class="badge text-bg-secondary ms-1">${esc(s.name)}</span>` : ''}</h6></div>
+        <button class="btn btn-sm btn-outline-light" data-detail-close aria-label="Fechar detalhe"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <div class="d-flex align-items-baseline gap-3 flex-wrap mt-2">
+        <div class="elo-score">${m.sets_me ?? '—'} × ${m.sets_opp ?? '—'}</div>
+        <div class="small text-secondary">${(m.sets || []).map(x => x.join('-')).join(' · ') || 'Sem sets registrados'}</div>
+      </div>
+      <div class="elo-detail-grid">
+        <div><small>ELO</small><b>${p.value - p.delta} → ${p.value}</b> ${delta(p.delta)}</div>
+        <div><small>Set / partida</small><b>${m.points_per_set ?? '—'} pontos · melhor de ${m.best_of ?? '—'}</b></div>
+        <div><small>Duração</small><b>${fmtDur(m.duration || 0)}</b></div>
+        ${m.tournament ? `<div><small>Torneio</small><b>${esc(m.tournament)}</b></div>` : ''}
+      </div>
+      ${m.notes ? `<div class="small text-secondary mt-2"><i class="bi bi-chat-left-text"></i> ${esc(m.notes)}</div>` : ''}
+    </div>`;
+    detail.hidden = false;
+  }
+
+  function draw() {
+    const s = span();
+    const visibleValues = [];
+    prepared.forEach(ser => ser.points.forEach(p => { if (inView(p)) visibleValues.push(p.value); }));
+    if (!visibleValues.length) {
+      const mid = (state.viewStart + state.viewEnd) / 2;
+      prepared.forEach(ser => { const i = eloNearest(ser.points, mid); if (i >= 0) visibleValues.push(ser.points[i].value); });
+    }
+    const rawLo = Math.min(...visibleValues), rawHi = Math.max(...visibleValues);
+    const valSpan = Math.max(rawHi - rawLo, 10);
+    const padY = Math.max(5, valSpan * .12);
+    let stepY = eloNiceStep((valSpan + padY * 2) / 5);
+    let yMin = Math.floor((rawLo - padY) / stepY) * stepY;
+    let yMax = Math.ceil((rawHi + padY) / stepY) * stepY;
+    while ((yMax - yMin) / stepY > 8) { stepY *= 2; yMin = Math.floor((rawLo - padY) / stepY) * stepY; yMax = Math.ceil((rawHi + padY) / stepY) * stepY; }
+    if (yMax <= yMin) yMax = yMin + stepY;
+    const yAt = v => G.T + (yMax - v) / (yMax - yMin) * PH;
+
+    let grid = '', axis = '';
+    for (let v = yMin; v <= yMax + stepY / 2; v += stepY) {
+      const yy = yAt(v);
+      grid += `<line class="ph-chart-grid" x1="${G.L}" y1="${yy.toFixed(1)}" x2="${G.W - G.R}" y2="${yy.toFixed(1)}" stroke="rgba(255,255,255,.09)" stroke-width="1"/>`;
+      axis += `<text class="ph-chart-axis" x="${G.L - 8}" y="${(yy + 3.5).toFixed(1)}" text-anchor="end" fill="#8b95b8" font-size="11" font-weight="600">${Math.round(v)}</text>`;
+    }
+    for (let i = 0; i < 5; i++) {
+      const at = state.viewStart + s * i / 4, xx = xAt(at);
+      const anchor = i === 0 ? 'start' : i === 4 ? 'end' : 'middle';
+      grid += `<line class="ph-chart-grid" x1="${xx.toFixed(1)}" y1="${G.T}" x2="${xx.toFixed(1)}" y2="${G.H - G.B}" stroke="rgba(255,255,255,.09)" stroke-width="1"/>`;
+      axis += `<text class="ph-chart-axis" x="${xx.toFixed(1)}" y="${G.H - 10}" text-anchor="${anchor}" fill="#8b95b8" font-size="11" font-weight="600">${eloChartTick(at, s)}</text>`;
+    }
+    const baseLine = 1000 >= yMin && 1000 <= yMax
+      ? `<line x1="${G.L}" y1="${yAt(1000).toFixed(1)}" x2="${G.W - G.R}" y2="${yAt(1000).toFixed(1)}" stroke="rgba(255,255,255,.3)" stroke-width="1" stroke-dasharray="4 4"/>` : '';
+    const baseLabel = 1000 >= yMin && 1000 <= yMax
+      ? `<text x="${G.W - G.R}" y="${(yAt(1000) - 4).toFixed(1)}" text-anchor="end" fill="#aab5cb" font-size="10" font-weight="600"
+           paint-order="stroke" stroke="#0d121c" stroke-width="3">ELO inicial 1000</text>` : '';
+
+    let plots = '';
+    prepared.forEach((ser, si) => {
+      const pts = pathPoints(ser.points);
+      if (single) {
+        const first = pts[0], last = pts[pts.length - 1];
+        const net = last && first ? last.value - first.value : 0;
+        const fill = net >= 0 ? ELO_UP : ELO_DOWN;
+        if (pts.length > 1) {
+          const area = `M ${xAt(first.at).toFixed(1)} ${(G.H - G.B).toFixed(1)} L ` +
+            pts.map(p => `${xAt(p.at).toFixed(1)} ${yAt(p.value).toFixed(1)}`).join(' L ') +
+            ` L ${xAt(last.at).toFixed(1)} ${(G.H - G.B).toFixed(1)} Z`;
+          plots += `<path d="${area}" fill="url(#${uid}fill)"/>`;
+          for (let i = 1; i < pts.length; i++) {
+            const q = pts[i - 1], p = pts[i];
+            plots += `<line class="elo-seg" x1="${xAt(q.at).toFixed(1)}" y1="${yAt(q.value).toFixed(1)}" x2="${xAt(p.at).toFixed(1)}" y2="${yAt(p.value).toFixed(1)}" stroke="${eloColor(p.value - q.value)}"/>`;
+          }
+        }
+      } else if (pts.length > 1) {
+        plots += `<path class="elo-line" d="${pts.map((p, i) => `${i ? 'L' : 'M'} ${xAt(p.at).toFixed(1)} ${yAt(p.value).toFixed(1)}`).join(' ')}" stroke="${ser.color}"/>`;
+      }
+      ser.points.forEach((p, i) => {
+        if (!inView(p)) return;
+        const last = i === ser.points.length - 1;
+        const cx = xAt(p.at), cy = yAt(p.value);
+        const fill = single ? (p.initial ? ELO_FLAT : eloColor(p.delta)) : ser.color;
+        const aria = p.initial ? `ELO inicial 1000 em ${eloWhen(p.at)}`
+          : `${eloWhen(p.at)}: ${p.meta?.result === 'W' ? 'vitória' : 'derrota'} contra ${p.meta?.opponent || 'adversário'}, sets ${p.meta?.sets_me ?? '?'} a ${p.meta?.sets_opp ?? '?'}, ELO ${p.value}`;
+        const selected = state.selected && state.selected.s === si && state.selected.i === i;
+        plots += `<g class="ph-point${selected ? ' active' : ''}" data-s="${si}" data-i="${i}" tabindex="0" role="button" aria-label="${esc(aria)}">
+          <circle class="ph-chart-dot${last ? ' last' : ''}" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${last ? 5 : 3}"
+            fill="${fill}" stroke="${last ? '#fff' : '#121826'}" stroke-width="${last ? 2 : 1.5}"><title>${esc(aria)}</title></circle>
+          ${selected ? `<circle class="elo-selected-ring" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="9"/>` : ''}
+        </g>`;
+      });
+    });
+
+    const mainVisible = prepared[0].points.filter(p => !p.initial && inView(p));
+    const mainNet = mainVisible.length > 1 ? mainVisible[mainVisible.length - 1].value - mainVisible[0].value
+      : (prepared[0].points[prepared[0].points.length - 1]?.value || 1000) - 1000;
+    const fillCol = mainNet >= 0 ? ELO_UP : ELO_DOWN;
+    const defs = `<defs><clipPath id="${uid}"><rect x="${G.L}" y="${G.T}" width="${PW}" height="${PH}"/></clipPath>
+      <linearGradient id="${uid}fill" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${single ? fillCol : ELO_COLORS[0]}" stop-opacity=".24"/>
+        <stop offset="100%" stop-color="${single ? fillCol : ELO_COLORS[0]}" stop-opacity="0"/>
+      </linearGradient></defs>`;
+    svg.innerHTML = `${defs}<g clip-path="url(#${uid})">${grid}${baseLine}${plots}</g>${axis}${baseLabel}
+      <line class="elo-crosshair" data-crosshair x1="${G.L}" y1="${G.T}" x2="${G.L}" y2="${G.H - G.B}" style="display:none"/>`;
+    renderSummary();
+    renderDetail();
+    updateControls();
+  }
+
+  function hideTip() {
+    if (tip) tip.hidden = true;
+    const cross = $('[data-crosshair]', svg);
+    if (cross) cross.style.display = 'none';
+    $$('.ph-point.near', svg).forEach(g => g.classList.remove('near'));
+  }
+
+  function showTip(clientX, clientY, html) {
+    if (!tip) return;
+    tip.innerHTML = html;
+    tip.hidden = false;
+    const box = tip.getBoundingClientRect(), gap = 14;
+    let left = clientX + gap, top = clientY + gap;
+    if (left + box.width > innerWidth - 8) left = clientX - box.width - gap;
+    if (top + box.height > innerHeight - 8) top = clientY - box.height - gap;
+    tip.style.left = Math.max(8, left) + 'px';
+    tip.style.top = Math.max(8, top) + 'px';
+  }
+
+  function handleHover(e) {
+    const rect = svg.getBoundingClientRect();
+    const vx = (e.clientX - rect.left) * G.W / (rect.width || 1);
+    if (vx < G.L || vx > G.W - G.R) return hideTip();
+    const at = timeAtX(e.clientX);
+    let best = null;
+    prepared.forEach((ser, si) => {
+      const idx = eloNearest(ser.points, at);
+      if (idx < 0) return;
+      const p = ser.points[idx];
+      if (!inView(p)) return;
+      if (!best || Math.abs(p.at - at) < Math.abs(best.p.at - at)) best = { s: ser, si, i: idx, p };
+    });
+    if (!best) return hideTip();
+    const cross = $('[data-crosshair]', svg);
+    if (cross) {
+      cross.setAttribute('x1', xAt(best.p.at).toFixed(1));
+      cross.setAttribute('x2', xAt(best.p.at).toFixed(1));
+      cross.style.display = '';
+    }
+    $$('.ph-point.near', svg).forEach(g => g.classList.remove('near'));
+    prepared.forEach((ser, si) => {
+      const idx = eloNearest(ser.points, best.p.at), p = ser.points[idx];
+      if (!p || !inView(p)) return;
+      const g = svg.querySelector(`.ph-point[data-s="${si}"][data-i="${idx}"]`);
+      if (g) g.classList.add('near');
+    });
+    showTip(e.clientX, e.clientY, single ? eloPointTooltip(best.s, best.p) : eloCompareTooltip(prepared, best.p.at));
+  }
+
+  function nearestPointFromEvent(e) {
+    const rect = svg.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    const px = (e.clientX - rect.left) * G.W / rect.width;
+    const py = (e.clientY - rect.top) * G.H / rect.height;
+    let best = null, bestD = Infinity;
+    $$('.ph-point', svg).forEach(g => {
+      const dot = $('.ph-chart-dot', g);
+      if (!dot) return;
+      const dx = Number(dot.getAttribute('cx')) - px, dy = Number(dot.getAttribute('cy')) - py;
+      const d = dx * dx + dy * dy;
+      if (d < bestD) { bestD = d; best = g; }
+    });
+    const max = 22 * Math.max(G.W / rect.width, G.H / rect.height);
+    return best && bestD <= max * max ? { s: +best.dataset.s, i: +best.dataset.i } : null;
+  }
+
+  function selectPoint(si, i) {
+    const same = state.selected && state.selected.s === si && state.selected.i === i;
+    state.selected = same ? null : { s: si, i };
+    hideTip();
+    draw();
+  }
+
+  root.addEventListener('click', e => {
+    const period = e.target.closest?.('[data-period]');
+    if (period) return applyPeriod(period.dataset.period);
+    const z = e.target.closest?.('[data-zoom]');
+    if (z) {
+      if (z.dataset.zoom === 'reset') return resetView();
+      return zoomAt(z.dataset.zoom === 'in' ? .6 : 1 / .6, (state.viewStart + state.viewEnd) / 2);
+    }
+    if (e.target.closest?.('[data-detail-close]')) {
+      state.selected = null;
+      hideTip();
+      return draw();
+    }
+  });
+
+  svg.addEventListener('pointerdown', e => {
+    if (e.button !== undefined && e.button !== 0) return;
+    state.dragging = { x: e.clientX, start: state.viewStart, end: state.viewEnd, moved: false };
+    try { svg.setPointerCapture(e.pointerId); } catch (_) { /* navegador antigo */ }
+    root.classList.add('dragging');
+  });
+
+  svg.addEventListener('pointermove', e => {
+    if (state.dragging) {
+      const dx = e.clientX - state.dragging.x;
+      if (Math.abs(dx) > 4) state.dragging.moved = true;
+      if (state.dragging.moved) {
+        const rect = svg.getBoundingClientRect();
+        const dt = -dx * (G.W / (rect.width || 1)) * (state.dragging.end - state.dragging.start) / PW;
+        setView(state.dragging.start + dt, state.dragging.end + dt);
+        return;
+      }
+    }
+    if (e.pointerType !== 'touch') handleHover(e);
+  });
+
+  const endDrag = e => {
+    const drag = state.dragging;
+    state.dragging = null;
+    root.classList.remove('dragging');
+    if (drag && !drag.moved && e.type === 'pointerup') {
+      const near = nearestPointFromEvent(e);
+      if (near) selectPoint(near.s, near.i);
+      else if (state.selected) { state.selected = null; draw(); }
+    }
+  };
+  svg.addEventListener('pointerup', endDrag);
+  svg.addEventListener('pointercancel', endDrag);
+  svg.addEventListener('pointerleave', hideTip);
+  svg.addEventListener('dblclick', e => { e.preventDefault(); resetView(); });
+  svg.addEventListener('wheel', e => {
+    if (!e.deltaY) return;
+    e.preventDefault();
+    zoomAt(e.deltaY > 0 ? 1.25 : .8, timeAtX(e.clientX));
+    handleHover(e);
+  }, { passive: false });
+
+  svg.addEventListener('keydown', e => {
+    const point = e.target.closest?.('.ph-point');
+    if (point && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      return selectPoint(+point.dataset.s, +point.dataset.i);
+    }
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      const d = (e.key === 'ArrowLeft' ? -1 : 1) * span() * .15;
+      return setView(state.viewStart + d, state.viewEnd + d);
+    }
+    if (e.key === '+' || e.key === '=') { e.preventDefault(); return zoomAt(.7, (state.viewStart + state.viewEnd) / 2); }
+    if (e.key === '-' || e.key === '_') { e.preventDefault(); return zoomAt(1 / .7, (state.viewStart + state.viewEnd) / 2); }
+    if (e.key === 'Home' || e.key === '0') { e.preventDefault(); return resetView(); }
+  });
+
+  draw();
 }
 
 async function athleteList() {
@@ -854,15 +1341,19 @@ async function athleteProfile(id) {
       <span class="badge text-bg-secondary">${GAME_STYLE[a.game_style]}</span>
       ${ex.line ? `<div class="small text-secondary mt-2">${ex.line}</div>` : ''}</div>
     <div class="text-center"><div class="display-4 fw-bold elo-big" data-count="${a.elo}">${a.elo}</div><div class="small text-secondary">ELO</div></div>
-    ${isAdmin() ? `<div class="d-flex gap-2"><a class="btn btn-outline-light" href="#/atletas/${id}/editar"><i class="bi bi-pencil"></i></a>
-      <button id="del" class="btn btn-outline-danger"><i class="bi bi-trash"></i></button></div>` : ''}</div>
+    <div class="d-flex gap-2 flex-wrap justify-content-end">
+      <a class="btn btn-outline-light" href="#/comparativo/${id}" title="Comparar desempenho"><i class="bi bi-arrow-left-right"></i><span class="d-none d-sm-inline"> Comparar</span></a>
+      ${isAdmin() ? `<a class="btn btn-outline-light" href="#/atletas/${id}/editar"><i class="bi bi-pencil"></i></a>
+      <button id="del" class="btn btn-outline-danger"><i class="bi bi-trash"></i></button>` : ''}</div></div>
     <div class="row g-3 mb-4 text-center">${[['Vitórias', a.wins], ['Derrotas', a.losses],
       ['Aproveitamento', total ? Math.round(a.wins / total * 100) + '%' : '–'],
       ['Sets ganhos', `${stats.sets_won}/${stats.sets_played}`]]
       .map(([k, v]) => `<div class="col-6 col-md"><div class="card p-3 h-100"><div class="fs-3 fw-bold">${v}</div><div class="small text-secondary">${k}</div></div></div>`).join('')}
       ${titles.total ? `<div class="col-12 col-md"><div class="card p-3 h-100"><div class="fs-4 fw-bold d-flex align-items-center justify-content-center gap-3 flex-wrap">${titleMedals(titles)}</div><div class="small text-secondary">Títulos</div></div></div>` : ''}</div>
     ${ex.extra}
-    <div class="card p-3 mb-4"><h5>Evolução do ELO</h5>${eloChart(elo_history)}</div>
+    <div class="card p-3 mb-4"><div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+      <h5 class="m-0">Evolução do ELO</h5><span class="small text-secondary">${stats.elo_matches || 0} partidas com ELO</span></div>
+      <div id="eloChart">${eloChart(elo_history)}</div></div>
     <div class="row g-3"><div class="col-lg-7"><div class="card p-3"><h5>Últimas partidas</h5><table class="table table-sm mb-0"><tbody>
       ${recent.map(m => `<tr><td>${fmtDate(m.created_at)}</td><td>vs ${esc(m.opponent)}</td><td>${m.mode === 'cooperative' ? `<span class="text-secondary">${fmtDur(m.duration || 0)}</span>` : `${m.sets_me} x ${m.sets_opp}`}</td>
         <td>${m.mode === 'cooperative' ? '<span class="text-secondary">Treino</span>' : m.result === 'W' ? '<span class="up">V</span>' : m.result === 'L' ? '<span class="down">D</span>' : '<span class="text-secondary">—</span>'}
@@ -871,6 +1362,7 @@ async function athleteProfile(id) {
       <div class="col-lg-5"><div class="card p-3"><h5>Torneios</h5>
       ${tournaments.map(t => `<a class="d-block text-decoration-none py-1" href="#/torneio/${t.id}">${t.champion_id === a.id ? '🏆 ' : ''}${esc(t.name)} <small class="text-secondary">${fmtDate(t.date)}</small></a>`).join('')
         || '<span class="text-secondary">Nenhum torneio.</span>'}</div></div></div>`);
+  initEloExplorer($('#eloChart .elo-explorer'), [{ name: a.name, history: elo_history }], { mode: 'single' });
   $('#del')?.addEventListener('click', async () => {
     if (!confirm(`Excluir ${a.name}? As partidas antigas continuam no histórico.`)) return;
     await api('/athletes/' + id, { method: 'DELETE' });
@@ -1272,7 +1764,8 @@ PH.routes.ranking = async id => {
   if (id) return PH.athleteProfile(id);
   render(`<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
       <h2 class="ph-title m-0">Ranking</h2>
-      <div class="d-flex gap-2"><input id="q" class="form-control" placeholder="Buscar…">
+      <div class="d-flex gap-2 flex-wrap"><input id="q" class="form-control" placeholder="Buscar…">
+      <a class="btn btn-outline-light text-nowrap" href="#/comparativo"><i class="bi bi-arrow-left-right"></i> Comparar</a>
       <a class="btn btn-outline-light text-nowrap" href="/api/export/ranking.csv"><i class="bi bi-download"></i> CSV</a></div></div>
     <div class="card"><div class="table-responsive"><table class="table align-middle mb-0">
       <thead><tr><th>#</th><th>Atleta</th><th class="text-end">ELO</th><th class="text-end d-none d-sm-table-cell">7 dias</th><th class="text-end">V / D</th></tr></thead>
@@ -1286,6 +1779,168 @@ PH.routes.ranking = async id => {
       || '<tr><td colspan="5" class="text-center text-secondary py-4">Nenhum atleta.</td></tr>';
   };
   $('#q').addEventListener('input', debounce(load));
+  await load();
+};
+
+
+/* Comparativo: ELO, aproveitamento, sets, pontos, adversários em comum e confronto direto. */
+const CMP_A_COLOR = '#60a5fa', CMP_B_COLOR = '#fb923c';
+
+function compareFormChips(form) {
+  if (!form?.length) return '<div class="small text-secondary mt-2">Sem partidas recentes</div>';
+  return `<div class="cmp-form" aria-label="Últimas cinco partidas">${form.map(r =>
+    `<span class="${r === 'W' ? 'w' : 'l'}" title="${r === 'W' ? 'Vitória' : 'Derrota'}">${r}</span>`).join('')}</div>`;
+}
+
+PH.routes.comparativo = async (paramA, paramB) => {
+  const athletes = await api('/athletes');
+  if (athletes.length < 2) {
+    render(`<h2 class="ph-title mb-3">Comparativo de desempenho</h2>
+      <div class="card p-4"><p class="text-secondary mb-3">Cadastre pelo menos dois atletas para comparar o desempenho.</p>
+      <a href="#/atletas" class="btn btn-ph"><i class="bi bi-people"></i> Ver atletas</a></div>`);
+    return;
+  }
+  const byElo = [...athletes].sort((x, y) => y.elo - x.elo || x.name.localeCompare(y.name));
+  const find = id => athletes.find(a => String(a.id) === String(id));
+  let aId = find(paramA)?.id ?? byElo[0].id;
+  let bId = find(paramB)?.id ?? byElo.find(a => a.id !== aId)?.id;
+  if (bId == null || bId === aId) bId = byElo.find(a => a.id !== aId).id;
+  let prevA = aId, prevB = bId;
+  const opts = selected => [...athletes].sort((x, y) => x.name.localeCompare(y.name)).map(a =>
+    `<option value="${a.id}" ${a.id === selected ? 'selected' : ''}>${esc(a.name)} — ELO ${a.elo}</option>`).join('');
+
+  render(`<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+      <div><h2 class="ph-title m-0">Comparativo de desempenho</h2>
+        <div class="small text-secondary mt-1">ELO, aproveitamento, sets, pontos e confrontos diretos.</div></div>
+      <a href="#/ranking" class="btn btn-outline-light"><i class="bi bi-bar-chart-line"></i> Ranking</a></div>
+    <div class="card p-3 mb-4"><div class="row g-3 align-items-end">
+      <div class="col-12 col-md-5"><label class="form-label" for="cmpA">Atleta A</label>
+        <select id="cmpA" class="form-select">${opts(aId)}</select></div>
+      <div class="col-12 col-md-2 d-flex justify-content-center">
+        <button id="cmpSwap" type="button" class="btn btn-outline-light w-100" title="Trocar atletas">
+          <i class="bi bi-arrow-left-right"></i><span class="d-md-none"> Trocar</span></button></div>
+      <div class="col-12 col-md-5"><label class="form-label" for="cmpB">Atleta B</label>
+        <select id="cmpB" class="form-select">${opts(bId)}</select></div>
+    </div></div>
+    <div id="cmpBody"><div class="sk mb-3" style="height:150px"></div>
+      <div class="row g-3"><div class="col-lg-7"><div class="sk" style="height:280px"></div></div>
+      <div class="col-lg-5"><div class="sk" style="height:280px"></div></div></div></div>`);
+
+  const paint = d => {
+    const A = d.a.athlete, B = d.b.athlete;
+    const sa = d.a.stats, sb = d.b.stats;
+    const ta = d.a.titles.total || 0, tb = d.b.titles.total || 0;
+    const pct = (n, total) => total ? Math.round(n / total * 100) : null;
+    const winPct = a => a.wins + a.losses ? Math.round(a.wins / (a.wins + a.losses) * 100) : null;
+    const setPct = st => st.sets_played ? Math.round(st.sets_won / st.sets_played * 100) : null;
+    const pointPct = st => st.points_for + st.points_against ? Math.round(st.points_for / (st.points_for + st.points_against) * 100) : null;
+    const pctText = v => v == null ? '—' : `${v}%`;
+    const plain = v => v == null ? '—' : String(v);
+    const streak = v => v > 0 ? `${v}V` : '—';
+
+    const side = (a, st, titles, form, cls) => `<a class="cmp-side ${cls}" href="#/atletas/${a.id}" title="Abrir perfil de ${esc(a.name)}">
+      ${avatar(a, true)}<div class="cmp-name">${esc(a.name)}</div><div class="cmp-nick">${esc(a.nickname || '')}</div>
+      <div class="cmp-elo">${a.elo}</div>
+      <div class="cmp-sub">${a.wins}V / ${a.losses}D${winPct(a) != null ? ` · ${winPct(a)}%` : ''}</div>
+      ${compareFormChips(form)}
+      <div class="badge text-bg-secondary mt-2">${titles} título${titles === 1 ? '' : 's'} · ${st.elo_matches || 0} partidas com ELO</div></a>`;
+
+    const metric = (label, va, vb, fmt = plain) => {
+      const aLead = va != null && (vb == null || va > vb), bLead = vb != null && (va == null || vb > va);
+      const baseA = Math.max(0, Number(va) || 0), baseB = Math.max(0, Number(vb) || 0);
+      const total = baseA + baseB, pctA = total ? baseA / total * 100 : 50;
+      return `<div class="cmp-metric"><div class="cmp-metric-head">
+          <span class="cmp-value a ${aLead ? 'lead-a' : ''}">${fmt(va)}</span>
+          <span class="cmp-label">${label}</span>
+          <span class="cmp-value b ${bLead ? 'lead-b' : ''}">${fmt(vb)}</span></div>
+        <div class="cmp-bar"><span class="a" style="width:${pctA.toFixed(1)}%"></span><span class="b" style="width:${(100 - pctA).toFixed(1)}%"></span></div></div>`;
+    };
+
+    const metrics = metric('ELO atual', A.elo, B.elo) +
+      metric('ELO máximo', sa.best_elo, sb.best_elo) +
+      metric('Aproveitamento', winPct(A), winPct(B), pctText) +
+      metric('Vitórias', A.wins, B.wins) +
+      metric('Sets ganhos', setPct(sa), setPct(sb), pctText) +
+      metric('Pontos ganhos', pointPct(sa), pointPct(sb), pctText) +
+      metric('Vitórias seguidas', Math.max(0, sa.streak || 0), Math.max(0, sb.streak || 0), streak) +
+      metric('Melhor sequência', sa.best_streak || 0, sb.best_streak || 0, streak) +
+      metric('Títulos', ta, tb);
+
+    const common = d.common.length ? `<div class="table-responsive"><table class="table table-sm cmp-common-table mb-0">
+      <thead><tr><th class="text-end">${esc(A.name)}</th><th class="text-center">Adversário</th><th>${esc(B.name)}</th></tr></thead><tbody>
+      ${d.common.map(o => {
+        const ap = pct(o.a.wins, o.a.matches), bp = pct(o.b.wins, o.b.matches);
+        return `<tr><td class="text-end"><b>${o.a.wins}–${o.a.matches - o.a.wins}</b>
+            <span class="cmp-common-pct ${ap > bp ? 'lead' : ''}">${pctText(ap)}</span></td>
+          <td class="text-center"><a href="#/atletas/${o.id}" class="text-decoration-none">${esc(o.name)}</a></td>
+          <td><b>${o.b.wins}–${o.b.matches - o.b.wins}</b>
+            <span class="cmp-common-pct ${bp > ap ? 'lead' : ''}">${pctText(bp)}</span></td></tr>`;
+      }).join('')}</tbody></table></div>`
+      : '<p class="text-secondary mb-0">Nenhum adversário em comum com partidas competitivas.</p>';
+
+    const h2hRecent = d.h2h.recent.length ? d.h2h.recent.map(r => `<div class="cmp-h2h-row">
+        <span class="date">${fmtDate(r.created_at)}</span>
+        <span class="score">${r.a_sets} × ${r.b_sets}</span>
+        <span class="winner"><span class="${r.winner === 'a' ? 'text-info' : 'text-warning'}">${esc(r.winner === 'a' ? A.name : B.name)}</span>
+          <small class="text-secondary d-none d-md-inline">${(r.sets || []).map(s => s.join('-')).join(' · ')}</small></span>
+        <span class="ms-auto small text-secondary text-nowrap">${r.tournament ? `<i class="bi bi-trophy"></i> ${esc(r.tournament)}` : `${r.points_per_set} pts`}</span>
+      </div>`).join('') : '<p class="text-secondary mb-0">Ainda não houve confronto direto entre eles.</p>';
+
+    const h2hSub = d.h2h.matches
+      ? `${d.h2h.matches} partida${d.h2h.matches === 1 ? '' : 's'} · sets ${d.h2h.a_sets}–${d.h2h.b_sets} · pontos ${d.h2h.a_points}–${d.h2h.b_points}`
+      : 'Ainda não se enfrentaram';
+    const hasChart = d.a.elo_history.length || d.b.elo_history.length;
+    const legend = `<span><i class="pdot" style="background:${CMP_A_COLOR}"></i>${esc(A.name)}</span>
+      <span><i class="pdot" style="background:${CMP_B_COLOR}"></i>${esc(B.name)}</span>`;
+
+    $('#cmpBody').innerHTML = `<div class="cmp-duel">
+        ${side(A, sa, ta, d.form.a, '')}
+        <div class="cmp-vs"><div class="small text-secondary text-uppercase" style="letter-spacing:.08em">Confronto direto</div>
+          <div class="cmp-vs-score"><span class="a">${d.h2h.a_wins}</span><span class="text-secondary">×</span><span class="b">${d.h2h.b_wins}</span></div>
+          <div class="small text-secondary">${h2hSub}</div></div>
+        ${side(B, sb, tb, d.form.b, 'b')}</div>
+      <div class="card p-3 mb-4"><div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+        <h5 class="m-0">Evolução do ELO</h5><span class="small text-secondary">Histórico completo de partidas com ELO</span></div>
+        ${hasChart ? eloChartShell({ compare: true, legend }) : '<p class="text-secondary mb-0">Nenhum dos atletas tem partidas com ELO.</p>'}</div>
+      <div class="row g-3 mb-4">
+        <div class="col-lg-7"><div class="card p-3 h-100"><h5>Comparativo de números</h5>
+          <div class="small text-secondary mb-2">Partidas competitivas individuais. O destaque mostra quem leva em cada critério.</div>${metrics}</div></div>
+        <div class="col-lg-5"><div class="card p-3 h-100"><h5>Adversários em comum</h5>
+          <div class="small text-secondary mb-2">Aproveitamento de cada atleta contra os mesmos rivais.</div>${common}</div></div>
+      </div>
+      <div class="card p-3"><h5>Últimos confrontos diretos</h5>
+        <div class="small text-secondary mb-2">Vitórias de ${esc(A.name)} à esquerda; de ${esc(B.name)} à direita.</div>${h2hRecent}</div>`;
+
+    if (hasChart) initEloExplorer($('#cmpBody .elo-explorer'), [
+      { id: 'a', name: A.name, color: CMP_A_COLOR, history: d.a.elo_history },
+      { id: 'b', name: B.name, color: CMP_B_COLOR, history: d.b.elo_history },
+    ], { mode: 'compare' });
+  };
+
+  const load = async () => {
+    aId = Number($('#cmpA').value); bId = Number($('#cmpB').value);
+    prevA = aId; prevB = bId;
+    window.history.replaceState(null, '', `#/comparativo/${aId}/${bId}`);
+    $('#cmpBody').innerHTML = `<div class="sk mb-3" style="height:150px"></div>
+      <div class="row g-3"><div class="col-lg-7"><div class="sk" style="height:280px"></div></div>
+      <div class="col-lg-5"><div class="sk" style="height:280px"></div></div></div>`;
+    paint(await api(`/compare?a=${aId}&b=${bId}`));
+  };
+
+  $('#cmpA').addEventListener('change', () => {
+    if ($('#cmpA').value === $('#cmpB').value) $('#cmpB').value = String(prevA);
+    load();
+  });
+  $('#cmpB').addEventListener('change', () => {
+    if ($('#cmpB').value === $('#cmpA').value) $('#cmpA').value = String(prevB);
+    load();
+  });
+  $('#cmpSwap').addEventListener('click', () => {
+    const a = $('#cmpA').value;
+    $('#cmpA').value = $('#cmpB').value;
+    $('#cmpB').value = a;
+    load();
+  });
   await load();
 };
 
