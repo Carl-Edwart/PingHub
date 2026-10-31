@@ -34,10 +34,11 @@ con.executescript("""
 CREATE TABLE athletes(id INTEGER PRIMARY KEY AUTOINCREMENT,name,nickname,photo,hand DEFAULT 'destro',play_style DEFAULT 'classica',game_style DEFAULT 'ataque',elo INT DEFAULT 1000,wins INT DEFAULT 0,losses INT DEFAULT 0,tournaments_won INT DEFAULT 0,tournaments_second INT DEFAULT 0,tournaments_third INT DEFAULT 0,club,birth_date,blade,rubber_fh,rubber_bh,bio,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE tournaments(id INTEGER PRIMARY KEY AUTOINCREMENT,name,date,type,points_per_set,best_of,status DEFAULT 'active',champion_id,location,seeding DEFAULT 'random',third_place INT DEFAULT 0);
 CREATE TABLE tournament_players(tournament_id,athlete_id);
-CREATE TABLE matches(id INTEGER PRIMARY KEY AUTOINCREMENT,player1_id,player2_id,player1_name,player2_name,modality,mode,points_per_set,best_of,sets_json,sets_p1,sets_p2,winner,duration,tournament_id,notes,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE matches(id INTEGER PRIMARY KEY AUTOINCREMENT,player1_id,player2_id,player1_name,player2_name,modality,mode,points_per_set,best_of,sets_json,sets_p1,sets_p2,winner,duration,tournament_id,tournament_match INT DEFAULT 0,notes,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE tournament_matches(id INTEGER PRIMARY KEY AUTOINCREMENT,tournament_id,round,position,player1_id,player2_id,winner_id,match_id,status DEFAULT 'waiting',third_place INT DEFAULT 0);
 CREATE TABLE elo_history(id INTEGER PRIMARY KEY AUTOINCREMENT,athlete_id,match_id,delta,elo_after,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE admin_credentials(id INTEGER PRIMARY KEY CHECK (id=1),password_hash TEXT NOT NULL,auth_version INT NOT NULL DEFAULT 1,updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE settings(key TEXT PRIMARY KEY,value TEXT NOT NULL);
 """)
 def _c(sql, args):
     # SQLite não tem ILIKE; o app usa ILIKE no PostgreSQL para busca sem diferenciar maiúsculas.
@@ -62,6 +63,12 @@ def post(mod_fn, payload):
     APP.request = types.SimpleNamespace(args={}, get_json=lambda silent=True, force=False: payload,
                                         headers={'X-Admin-Token': ADMIN_TOKEN}, remote_addr='127.0.0.1')
     return mod_fn()
+
+
+def put(mod_fn, payload, *args):
+    APP.request = types.SimpleNamespace(args={}, get_json=lambda silent=True, force=False: payload,
+                                        headers={'X-Admin-Token': ADMIN_TOKEN}, remote_addr='127.0.0.1')
+    return mod_fn(*args)
 
 def play_all(tid):
     n, summary = 0, None
@@ -128,7 +135,23 @@ for bad in ({'player1': {'name': 'a'}, 'player2': {'name': 'b'}, 'sets': []},
             {'player1': {'athlete_id': a}, 'player2': {'athlete_id': a}, 'sets': [[11, 1]]}):
     try: post(M.create_match, bad); raise SystemExit('deveria falhar')
     except Abort as e: assert e.code == 400
-print('partidas avulsas/validações ok')
+
+# somente sets de 5+ pontos valem ELO
+p3, q3 = [x("INSERT INTO athletes(name) VALUES (%s)", (n,)) for n in ('P3', 'Q3')]
+r = post(M.create_match, {'player1': {'athlete_id': p3}, 'player2': {'athlete_id': q3},
+                          'points_per_set': 3, 'best_of': 1, 'sets': [[3, 1]]})[0]
+assert r['elo'] is None and not q("SELECT id FROM elo_history WHERE match_id=%s", (r['id'],))
+assert q("SELECT wins FROM athletes WHERE id=%s", (p3,), one=True)['wins'] == 1
+p5, q5 = [x("INSERT INTO athletes(name) VALUES (%s)", (n,)) for n in ('P5', 'Q5')]
+r = post(M.create_match, {'player1': {'athlete_id': p5}, 'player2': {'athlete_id': q5},
+                          'points_per_set': 5, 'best_of': 1, 'sets': [[5, 3]]})[0]
+assert r['elo'] and r['elo']['player1']['delta'] > 0 and r['elo']['player2']['delta'] < 0
+
+# pesos: experiência, equilíbrio e zebra
+assert APP._experience_factor(5, 5, 5, 5) < APP._experience_factor(40, 50, 40, 50)
+assert APP._closeness_factor([[11, 1], [11, 2]], 11) < APP._closeness_factor([[11, 9], [11, 10]], 11)
+assert APP._upset_factor(1000, 1200) > APP._upset_factor(1200, 1000)
+print('partidas avulsas/validações ok; ELO só em 5+ pontos; pesos ok')
 
 # cadastro de atleta: empunhadura, mão e estilo de jogo
 r = post(A.create_athlete, {'name': 'Estilo', 'hand': 'canhoto', 'play_style': 'caneta',
@@ -147,6 +170,7 @@ tm = q("SELECT id FROM tournament_matches WHERE tournament_id=%s AND player1_id 
        "AND player2_id IS NOT NULL", (tid,), one=True)
 r = post(M.create_match, {'tournament_match_id': tm['id'], 'sets': [[3, 1], [3, 2]], 'duration': 60})[0]
 assert (r['sets_p1'], r['sets_p2']) == (2, 0), r
+assert r['elo'] is None and not q("SELECT id FROM elo_history WHERE match_id=%s", (r['id'],))
 d = r['tournament_result']
 assert d['tournament']['status'] == 'finished' and d['tournament']['points_per_set'] == 3, d['tournament']
 champ = d['tournament']['champion_id']
@@ -213,6 +237,42 @@ print('cabeças de chave ok')
 st = APP.stats()
 assert st['athletes'] > 10 and st['matches'] > 10 and st['tournaments'] == 0 and st['active_tournaments'] == 0, st
 print('estatísticas gerais ok')
+
+# ---- corrigir placar de partida avulsa (e recalcular os pontos) ----
+e1, e2 = [x("INSERT INTO athletes(name) VALUES (%s)", (n,)) for n in ('Edit1', 'Edit2')]
+r = post(M.create_match, {'player1': {'athlete_id': e1}, 'player2': {'athlete_id': e2},
+                          'points_per_set': 11, 'best_of': 3, 'sets': [[11, 9], [11, 7]],
+                          'duration': 300})[0]
+assert r['winner'] == 1 and r['elo']['player1']['delta'] > 0
+r2 = put(M.update_match, {'sets': [[9, 11], [7, 11]], 'duration': 240, 'notes': 'corrigida'}, r['id'])
+assert r2['winner'] == 2 and r2['sets_p1'] == 0 and r2['sets_p2'] == 2, r2
+assert r2['elo']['player1']['delta'] < 0 and r2['elo']['player2']['delta'] > 0, r2
+hist = q("SELECT athlete_id, delta FROM elo_history WHERE match_id=%s ORDER BY athlete_id", (r['id'],))
+assert len(hist) == 2 and next(h for h in hist if h['athlete_id'] == e2)['delta'] > 0, hist
+assert q("SELECT wins, losses FROM athletes WHERE id=%s", (e1,), one=True) == {'wins': 0, 'losses': 1}
+assert q("SELECT wins, losses FROM athletes WHERE id=%s", (e2,), one=True) == {'wins': 1, 'losses': 0}
+assert q("SELECT notes, duration FROM matches WHERE id=%s", (r['id'],), one=True) == {'notes': 'corrigida', 'duration': 240}
+APP.request = types.SimpleNamespace(args={})
+listed = next(m for m in M.list_matches() if m['id'] == r['id'])
+assert listed['elo_p1'] < 0 and listed['elo_p2'] > 0, listed
+prof = A.get_athlete(e2)
+assert prof['recent'][0]['id'] == r['id'] and prof['recent'][0]['elo_delta'] > 0, prof['recent'][0]
+
+# corrigir os pontos também pode transformar uma partida de 3 em 5+ pontos
+r3 = post(M.create_match, {'player1': {'athlete_id': e1}, 'player2': {'athlete_id': e2},
+                           'points_per_set': 3, 'best_of': 1, 'sets': [[3, 1]]})[0]
+assert r3['elo'] is None
+r4 = put(M.update_match, {'points_per_set': 11, 'best_of': 1, 'sets': [[11, 4]]}, r3['id'])
+assert r4['elo'] and r4['elo']['player1']['delta'] > 0, r4
+
+# partidas de torneio ficam bloqueadas (a chave não pode ser inconsistente)
+r5 = post(M.create_match, {'player1': {'athlete_id': e1}, 'player2': {'athlete_id': e2},
+                           'points_per_set': 3, 'best_of': 1, 'sets': [[3, 2]]})[0]
+x("UPDATE matches SET tournament_match=1 WHERE id=%s", (r5['id'],))
+try: put(M.update_match, {'sets': [[2, 3]]}, r5['id']); raise SystemExit('deveria bloquear torneio')
+except Abort as e: assert e.code == 409
+x("UPDATE matches SET tournament_match=0 WHERE id=%s", (r5['id'],))
+print('correção de partidas e pontos no histórico ok')
 
 # ---- servidor: index, conteúdo e isolamento de arquivos sensíveis (sem PostgreSQL real) ----
 APP.jsonify, APP.request = _real

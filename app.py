@@ -292,6 +292,7 @@ CREATE TABLE IF NOT EXISTS matches (
   winner SMALLINT NULL,                         -- 1, 2 ou NULL
   duration INT NOT NULL DEFAULT 0,             -- segundos
   tournament_id INT NULL,
+  tournament_match SMALLINT NOT NULL DEFAULT 0, -- preserva o K de torneio após o evento ser excluído
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (player1_id) REFERENCES athletes(id) ON DELETE SET NULL,
   FOREIGN KEY (player2_id) REFERENCES athletes(id) ON DELETE SET NULL,
@@ -347,11 +348,17 @@ CREATE TABLE IF NOT EXISTS mesa_queue (
   name VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS settings (
+  key VARCHAR(80) PRIMARY KEY,
+  value TEXT NOT NULL
+);
 """
 
 EXPECTED_TABLES = frozenset({
     "athletes", "tournaments", "tournament_players", "matches",
     "tournament_matches", "elo_history", "admin_credentials", "mesa_state", "mesa_queue",
+    "settings",
 })
 
 # Chave fixa em 64 bits ("PINGHUB" em ASCII). O advisory lock é por banco e
@@ -367,6 +374,7 @@ MIGRATIONS = [
     ("tournaments", "third_place", "SMALLINT NOT NULL DEFAULT 0"),
     ("tournament_matches", "third_place", "SMALLINT NOT NULL DEFAULT 0"),
     ("matches", "notes", "VARCHAR(200) NULL"),
+    ("matches", "tournament_match", "SMALLINT NOT NULL DEFAULT 0"),
     ("admin_credentials", "auth_version", "INTEGER NOT NULL DEFAULT 1"),
     ("admin_credentials", "updated_at", "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"),
 ]
@@ -537,10 +545,30 @@ def init_db():
                 if not c.fetchone():
                     ddl = ddl.replace("TINYINT", "SMALLINT").replace("DATETIME", "TIMESTAMP")
                     c.execute(f'ALTER TABLE "{table}" ADD COLUMN "{col}" {ddl}')
+            # Preserva o K de torneio nas partidas antigas cujo evento ainda existe.
+            c.execute("UPDATE matches SET tournament_match=1 "
+                      "WHERE tournament_id IS NOT NULL AND tournament_match=0")
             has_admin = _ensure_admin_credential(c)
             c.execute("CREATE INDEX IF NOT EXISTS idx_elo ON athletes (elo)")
             c.execute("CREATE INDEX IF NOT EXISTS idx_created ON matches (created_at)")
             c.execute("CREATE INDEX IF NOT EXISTS idx_ath ON elo_history (athlete_id, created_at)")
+
+            # A regra de ELO mudou (5+ pontos, experiência, equilíbrio e upset):
+            # recalcula uma única vez os dados antigos e grava a versão no banco.
+            c.execute("SELECT value FROM settings WHERE key=%s", (RATING_RULES_KEY,))
+            rating_version = c.fetchone()
+            if not rating_version or rating_version["value"] != RATING_RULES_VERSION:
+                def cursor_q(sql, args=(), one=False):
+                    c.execute(sql, args)
+                    return c.fetchone() if one else c.fetchall()
+
+                def cursor_x(sql, args=()):
+                    c.execute(sql, args)
+
+                _rebuild_ratings(cursor_q, cursor_x)
+                c.execute("INSERT INTO settings (key, value) VALUES (%s, %s) "
+                          "ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value",
+                          (RATING_RULES_KEY, RATING_RULES_VERSION))
 
             # Confere o resultado no schema explicitamente configurado.
             c.execute(
@@ -654,13 +682,191 @@ def close(_exc=None):
 ELO_INITIAL = 1000
 K_MATCH = 32        # partidas avulsas
 K_TOURNAMENT = 16   # partidas de torneio
+RANKED_MIN_POINTS = 5          # sets de 3 pontos contam V/D, mas não mexem no ELO
+EXPERIENCE_FULL_MATCHES = 50   # a partir daqui o fator de experiência é máximo
+MAX_ELO_DELTA = 64
+RATING_RULES_KEY = "elo_rules_version"
+RATING_RULES_VERSION = "2"
 
 
 def calculate_elo(rating_a, rating_b, score_a, k=K_MATCH):
-    """score_a: 1 se A venceu, 0 se perdeu. Retorna (novoA, novoB, deltaA, deltaB)."""
+    """Elo base. score_a: 1 se A venceu, 0 se perdeu."""
     expected_a = 1 / (1 + 10 ** ((rating_b - rating_a) / 400))
     delta_a = round(k * (score_a - expected_a))
     return rating_a + delta_a, rating_b - delta_a, delta_a, -delta_a
+
+
+def _match_sets(match):
+    """Placar dos sets como lista de pares, aceitando JSON do PostgreSQL ou texto do SQLite."""
+    sets = match.get("sets_json") if isinstance(match, dict) else match["sets_json"]
+    if isinstance(sets, str):
+        try:
+            sets = json.loads(sets)
+        except (TypeError, ValueError):
+            sets = []
+    return [[int(a), int(b)] for a, b in (sets or [])]
+
+
+def _is_ranked_match(match):
+    """Partida que vale ELO: competitiva, individual, 5+ pontos e dois atletas cadastrados."""
+    return bool(
+        match.get("mode") == "competitive"
+        and match.get("modality") == "singles"
+        and match.get("winner") in (1, 2)
+        and int(match.get("points_per_set") or 0) >= RANKED_MIN_POINTS
+        and match.get("player1_id")
+        and match.get("player2_id")
+    )
+
+
+def _closeness_factor(sets, points):
+    """Sets acirrados valem mais; goleadas valem menos (0,75 a 1,25)."""
+    if not sets:
+        return 1.0
+    margin = sum(abs(a - b) for a, b in sets) / len(sets)
+    closeness = max(0.0, 1.0 - margin / max(int(points or 1), 1))
+    return 0.75 + 0.5 * closeness
+
+
+def _experience_factor(wins1, losses1, wins2, losses2):
+    """Quanto mais partidas os dois jogadores têm, mais o resultado pesa (0,75 a 1,25)."""
+    average_matches = (wins1 + losses1 + wins2 + losses2) / 2
+    return 0.75 + 0.5 * min(1.0, average_matches / EXPERIENCE_FULL_MATCHES)
+
+
+def _upset_factor(winner_elo, loser_elo):
+    """Punição extra quando o favorito perde para alguém com ELO menor (até 1,5x)."""
+    gap = max(0, loser_elo - winner_elo)
+    return 1.0 + 0.5 * min(1.0, gap / 200)
+
+
+def _match_elo_deltas(match, athlete1, athlete2):
+    """Deltas simétricos do ELO para uma partida ranqueada."""
+    points = int(match.get("points_per_set") or 0)
+    sets = _match_sets(match)
+    winner = match["winner"]
+    base = K_TOURNAMENT if (match.get("tournament_match") or match.get("tournament_id")) else K_MATCH
+    k = base * _closeness_factor(sets, points) * \
+        _experience_factor(athlete1["wins"], athlete1["losses"], athlete2["wins"], athlete2["losses"])
+    if winner == 2:   # o vencedor é o jogador 2: o ELO menor/maior se inverte na conta do upset
+        winner_elo, loser_elo = athlete2["elo"], athlete1["elo"]
+    else:
+        winner_elo, loser_elo = athlete1["elo"], athlete2["elo"]
+    k *= _upset_factor(winner_elo, loser_elo)
+    expected1 = 1 / (1 + 10 ** ((athlete2["elo"] - athlete1["elo"]) / 400))
+    delta1 = round(k * ((1 if winner == 1 else 0) - expected1))
+    delta1 = max(-MAX_ELO_DELTA, min(MAX_ELO_DELTA, delta1))
+    if delta1 == 0:   # toda partida válida mexe pelo menos 1 ponto
+        delta1 = 1 if winner == 1 else -1
+    return delta1, -delta1
+
+
+def _rebuild_ratings(qf, xf):
+    """Recalcula ELO, V/D e elo_history de todas as partidas, em ordem cronológica.
+
+    É usado na primeira inicialização com a regra nova e depois de qualquer
+    correção de placar, porque uma partida antiga altera o ELO das seguintes.
+    """
+    athletes = qf("SELECT id FROM athletes")
+    ratings = {row["id"]: ELO_INITIAL for row in athletes}
+    wins = {row["id"]: 0 for row in athletes}
+    losses = {row["id"]: 0 for row in athletes}
+    xf("DELETE FROM elo_history")
+    for match in qf("SELECT * FROM matches ORDER BY created_at, id"):
+        if match.get("mode") != "competitive" or match.get("modality") != "singles" \
+                or match.get("winner") not in (1, 2):
+            continue
+        p1, p2 = match.get("player1_id"), match.get("player2_id")
+        if p1 and p2 and _is_ranked_match(match):
+            a1 = {"elo": ratings[p1], "wins": wins[p1], "losses": losses[p1]}
+            a2 = {"elo": ratings[p2], "wins": wins[p2], "losses": losses[p2]}
+            delta1, delta2 = _match_elo_deltas(match, a1, a2)
+            ratings[p1] += delta1
+            ratings[p2] += delta2
+            for aid, delta in ((p1, delta1), (p2, delta2)):
+                xf("INSERT INTO elo_history (athlete_id, match_id, delta, elo_after, created_at) "
+                   "VALUES (%s,%s,%s,%s,%s)",
+                   (aid, match["id"], delta, ratings[aid], match.get("created_at")))
+        if match["winner"] == 1:
+            if p1:
+                wins[p1] += 1
+            if p2:
+                losses[p2] += 1
+        else:
+            if p2:
+                wins[p2] += 1
+            if p1:
+                losses[p1] += 1
+    for aid in ratings:
+        xf("UPDATE athletes SET elo=%s, wins=%s, losses=%s WHERE id=%s",
+           (ratings[aid], wins[aid], losses[aid], aid))
+
+
+def rebuild_ratings():
+    """Versão para requisições normais (q/x são substituídos nos testes SQLite)."""
+    _rebuild_ratings(q, x)
+
+
+def _mark_rating_rules():
+    x("INSERT INTO settings (key, value) VALUES (%s, %s) "
+      "ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value",
+      (RATING_RULES_KEY, RATING_RULES_VERSION))
+
+
+def ensure_ratings_current():
+    """Garante que o banco já usa a regra atual; roda uma vez por versão."""
+    row = q("SELECT value FROM settings WHERE key=%s", (RATING_RULES_KEY,), one=True)
+    if row and row["value"] == RATING_RULES_VERSION:
+        return
+    rebuild_ratings()
+    _mark_rating_rules()
+
+
+def _elo_response(match_id, match):
+    """Monta os dados de ELO de uma partida para a resposta da API."""
+    if not _is_ranked_match(match):
+        return None
+    rows = q("SELECT athlete_id, delta, elo_after FROM elo_history WHERE match_id=%s", (match_id,))
+    by_athlete = {row["athlete_id"]: row for row in rows}
+    h1, h2 = by_athlete.get(match["player1_id"]), by_athlete.get(match["player2_id"])
+    if not h1 or not h2:
+        return None
+    return {
+        "player1": {"before": h1["elo_after"] - h1["delta"], "after": h1["elo_after"], "delta": h1["delta"]},
+        "player2": {"before": h2["elo_after"] - h2["delta"], "after": h2["elo_after"], "delta": h2["delta"]},
+    }
+
+
+def _apply_match_effects(match):
+    """Aplica V/D e ELO de uma partida recém-criada (sempre a mais recente)."""
+    if match.get("mode") != "competitive" or match.get("modality") != "singles" \
+            or match.get("winner") not in (1, 2):
+        return None
+    p1, p2 = match.get("player1_id"), match.get("player2_id")
+    a1 = q("SELECT id, elo, wins, losses FROM athletes WHERE id=%s", (p1,), one=True) if p1 else None
+    a2 = q("SELECT id, elo, wins, losses FROM athletes WHERE id=%s", (p2,), one=True) if p2 else None
+    elo = None
+    if a1 and a2 and _is_ranked_match(match):
+        delta1, delta2 = _match_elo_deltas(match, a1, a2)
+        for athlete, delta in ((a1, delta1), (a2, delta2)):
+            after = athlete["elo"] + delta
+            x("UPDATE athletes SET elo=%s WHERE id=%s", (after, athlete["id"]))
+            x("INSERT INTO elo_history (athlete_id, match_id, delta, elo_after, created_at) "
+              "VALUES (%s,%s,%s,%s,%s)",
+              (athlete["id"], match["id"], delta, after, match.get("created_at")))
+        elo = {"player1": {"before": a1["elo"], "after": a1["elo"] + delta1, "delta": delta1},
+               "player2": {"before": a2["elo"], "after": a2["elo"] + delta2, "delta": delta2}}
+    if match["winner"] == 1:
+        if p1:
+            x("UPDATE athletes SET wins = wins + 1 WHERE id=%s", (p1,))
+        if p2:
+            x("UPDATE athletes SET losses = losses + 1 WHERE id=%s", (p2,))
+    else:
+        if p2:
+            x("UPDATE athletes SET wins = wins + 1 WHERE id=%s", (p2,))
+        if p1:
+            x("UPDATE athletes SET losses = losses + 1 WHERE id=%s", (p1,))
+    return elo
 
 
 # ============ CHAVEAMENTO ============
@@ -847,9 +1053,12 @@ def create_athlete():
 @api.get("/athletes/<int:athlete_id>")
 def get_athlete(athlete_id):
     a = _get_or_404(athlete_id)
-    rows = q("SELECT id, created_at, mode, player1_id, player2_id, player1_name, player2_name, sets_p1, sets_p2, "
-             "winner, sets_json, duration FROM matches WHERE player1_id=%s OR player2_id=%s "
-             "ORDER BY created_at DESC, id DESC", (athlete_id, athlete_id))
+    rows = q("SELECT m.id, m.created_at, m.mode, m.player1_id, m.player2_id, m.player1_name, m.player2_name, "
+             "m.sets_p1, m.sets_p2, m.winner, m.sets_json, m.duration, m.points_per_set, "
+             "h.delta AS elo_delta, h.elo_after AS elo_after "
+             "FROM matches m LEFT JOIN elo_history h ON h.match_id=m.id AND h.athlete_id=%s "
+             "WHERE m.player1_id=%s OR m.player2_id=%s ORDER BY m.created_at DESC, m.id DESC",
+             (athlete_id, athlete_id, athlete_id))
     sets_won = sets_played = pts_for = pts_against = secs = 0
     recent, rivals, results = [], {}, []          # results: mais recente primeiro
     for m in rows:
@@ -872,7 +1081,8 @@ def get_athlete(athlete_id):
         if len(recent) < 15:
             recent.append({"id": m["id"], "created_at": m["created_at"], "mode": m["mode"], "opponent": opp,
                            "sets_me": mine, "sets_opp": theirs, "result": res,
-                           "duration": m["duration"] or 0})
+                           "duration": m["duration"] or 0, "points_per_set": m["points_per_set"],
+                           "elo_delta": m["elo_delta"], "elo_after": m["elo_after"]})
     best = run = 0
     for r in reversed(results):                  # cronológico
         run = run + 1 if r == "W" else 0
@@ -1214,12 +1424,13 @@ def _check_sets(sets, points, best_of):
 
 @api.post("/matches")
 def create_match():
+    ensure_ratings_current()
     d = request.get_json(silent=True) or {}
     modality, mode = d.get("modality", "singles"), d.get("mode", "competitive")
     if modality not in ("singles", "doubles") or mode not in ("competitive", "cooperative"):
         abort(400, "Modo ou modalidade inválidos.")
     try:
-        points, best_of, duration = int(d.get("points_per_set", 3)), int(d.get("best_of", 1)), int(d.get("duration") or 0)
+        points, best_of, duration = int(d.get("points_per_set", 11)), int(d.get("best_of", 3)), int(d.get("duration") or 0)
     except (TypeError, ValueError):
         abort(400, "Configuração inválida.")
 
@@ -1255,28 +1466,15 @@ def create_match():
             abort(400, "Partida de torneio precisa de um vencedor.")
 
     match_id = x("""INSERT INTO matches (player1_id, player2_id, player1_name, player2_name, modality, mode,
-                    points_per_set, best_of, sets_json, sets_p1, sets_p2, winner, duration, tournament_id, notes)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                    points_per_set, best_of, sets_json, sets_p1, sets_p2, winner, duration, tournament_id,
+                    tournament_match, notes)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
                  (p1["id"], p2["id"], p1["name"], p2["name"], modality, mode, points, best_of,
                   json.dumps(sets), sets_p1, sets_p2, winner, duration, tm["tournament_id"] if tm else None,
-                  (d.get("notes") or "").strip()[:200] or None))
+                  1 if tm else 0, (d.get("notes") or "").strip()[:200] or None))
 
-    elo = None
-    if mode == "competitive" and modality == "singles" and winner:
-        won, lost = (p1, p2) if winner == 1 else (p2, p1)
-        if won["id"]:
-            x("UPDATE athletes SET wins = wins + 1 WHERE id=%s", (won["id"],))
-        if lost["id"]:
-            x("UPDATE athletes SET losses = losses + 1 WHERE id=%s", (lost["id"],))
-        if p1["id"] and p2["id"]:   # ELO só entre dois atletas cadastrados
-            n1, n2, d1, d2 = calculate_elo(p1["elo"], p2["elo"], 1 if winner == 1 else 0,
-                                           K_TOURNAMENT if tm else K_MATCH)
-            for p, new, delta in ((p1, n1, d1), (p2, n2, d2)):
-                x("UPDATE athletes SET elo=%s WHERE id=%s", (new, p["id"]))
-                x("INSERT INTO elo_history (athlete_id, match_id, delta, elo_after) VALUES (%s,%s,%s,%s)",
-                  (p["id"], match_id, delta, new))
-            elo = {"player1": {"before": p1["elo"], "after": n1, "delta": d1},
-                   "player2": {"before": p2["elo"], "after": n2, "delta": d2}}
+    match = q("SELECT * FROM matches WHERE id=%s", (match_id,), one=True)
+    elo = _apply_match_effects(match)
     summary = None
     if tm:
         summary = apply_result(tm, (p1 if winner == 1 else p2)["id"], match_id)
@@ -1289,15 +1487,69 @@ def create_match():
 
 @api.get("/matches")
 def list_matches():
-    limit = min(max(request.args.get("limit", 20, type=int), 1), 200)
+    try:
+        limit = int(request.args.get("limit", 20))
+    except (TypeError, ValueError):
+        limit = 20
+    limit = min(max(limit, 1), 200)
     s = f"%{request.args.get('q', '').strip()}%"
-    rows = q("SELECT m.*, t.name AS tournament_name FROM matches m LEFT JOIN tournaments t ON t.id = m.tournament_id "
-             "WHERE m.player1_name ILIKE %s OR m.player2_name ILIKE %s ORDER BY m.created_at DESC, m.id DESC LIMIT %s",
+    rows = q("""SELECT m.*, t.name AS tournament_name,
+                       (SELECT h.delta FROM elo_history h
+                        WHERE h.match_id=m.id AND h.athlete_id=m.player1_id
+                        ORDER BY h.id DESC LIMIT 1) AS elo_p1,
+                       (SELECT h.delta FROM elo_history h
+                        WHERE h.match_id=m.id AND h.athlete_id=m.player2_id
+                        ORDER BY h.id DESC LIMIT 1) AS elo_p2
+                FROM matches m LEFT JOIN tournaments t ON t.id = m.tournament_id
+                WHERE m.player1_name ILIKE %s OR m.player2_name ILIKE %s
+                ORDER BY m.created_at DESC, m.id DESC LIMIT %s""",
              (s, s, limit))
     for r in rows:
         if isinstance(r["sets_json"], str):
             r["sets_json"] = json.loads(r["sets_json"])
     return jsonify(rows)
+
+
+@api.put("/matches/<int:match_id>")
+@admin_required
+def update_match(match_id):
+    """Corrige o placar de uma partida avulsa e recalcula o ELO de todas as seguintes."""
+    ensure_ratings_current()
+    match = q("SELECT * FROM matches WHERE id=%s", (match_id,), one=True)
+    if not match:
+        abort(404, "Partida não encontrada.")
+    if match["tournament_id"] or match.get("tournament_match"):
+        abort(409, "Partidas de torneio não podem ser editadas porque alteram a chave. "
+                   "Exclua o torneio e refaça o confronto, se necessário.")
+    d = request.get_json(silent=True) or {}
+    try:
+        duration = max(0, min(int(d.get("duration", match["duration"]) or 0), 86400))
+    except (TypeError, ValueError):
+        abort(400, "Duração inválida.")
+    notes = str((d.get("notes") if "notes" in d else match.get("notes")) or "").strip()[:200] or None
+
+    if match["mode"] == "cooperative":
+        x("UPDATE matches SET duration=%s, notes=%s WHERE id=%s", (duration, notes, match_id))
+        return jsonify(id=match_id, winner=None, sets_p1=0, sets_p2=0, elo=None)
+
+    try:
+        points = int(d.get("points_per_set", match["points_per_set"]))
+        best_of = int(d.get("best_of", match["best_of"]))
+    except (TypeError, ValueError):
+        abort(400, "Configuração inválida.")
+    if best_of not in (1, 3, 5, 7) or not 3 <= points <= 21:
+        abort(400, "Configuração de partida inválida.")
+    sets = _sets(d["sets"] if "sets" in d else _match_sets(match))
+    _check_sets(sets, points, best_of)
+    sets_p1, sets_p2 = sum(a > b for a, b in sets), sum(b > a for a, b in sets)
+    winner = 1 if sets_p1 > sets_p2 else 2
+    x("""UPDATE matches SET points_per_set=%s, best_of=%s, sets_json=%s, sets_p1=%s,
+                sets_p2=%s, winner=%s, duration=%s, notes=%s WHERE id=%s""",
+      (points, best_of, json.dumps(sets), sets_p1, sets_p2, winner, duration, notes, match_id))
+    rebuild_ratings()
+    updated = q("SELECT * FROM matches WHERE id=%s", (match_id,), one=True)
+    return jsonify(id=match_id, winner=winner, sets_p1=sets_p1, sets_p2=sets_p2,
+                   elo=_elo_response(match_id, updated))
 
 
 # ============ RANKING E EXPORTAÇÕES ============

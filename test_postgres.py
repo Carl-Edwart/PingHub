@@ -92,14 +92,35 @@ try:
     match = expect(client.post("/api/matches", json={
         "player1": {"athlete_id": ana["id"]},
         "player2": {"athlete_id": beto["id"]},
-        "points_per_set": 3,
+        "points_per_set": 5,
         "best_of": 1,
-        "sets": [[3, 1]],
+        "sets": [[5, 1]],
     }), 201)
     assert match["winner"] == 1 and match["elo"]["player1"]["delta"] > 0, match
 
     ranking = expect(client.get("/api/ranking"))
     assert ranking[0]["id"] == ana["id"] and ranking[0]["elo"] > ranking[1]["elo"], ranking
+    history = expect(client.get("/api/matches"))
+    assert history[0]["elo_p1"] > 0 and history[0]["elo_p2"] < 0, history[0]
+
+    # Correção de placar: refaz o ELO e o histórico; depois restaura o resultado original.
+    fixed = expect(client.put(f"/api/matches/{match['id']}", json={"sets": [[1, 5]]}, headers=admin))
+    assert fixed["winner"] == 2 and fixed["elo"]["player1"]["delta"] < 0, fixed
+    restored = expect(client.put(f"/api/matches/{match['id']}", json={"sets": [[5, 1]]}, headers=admin))
+    assert restored["winner"] == 1 and restored["elo"]["player1"]["delta"] > 0, restored
+    expect(client.put(f"/api/matches/{match['id']}", json={"sets": [[1, 5]]}), 401)
+    expect(client.put("/api/matches/999999999", json={"sets": [[5, 1]]}, headers=admin), 404)
+
+    # Sets de 3 pontos contam V/D, mas não mexem no ELO.
+    short = expect(client.post("/api/matches", json={
+        "player1": {"athlete_id": ana["id"]},
+        "player2": {"athlete_id": beto["id"]},
+        "points_per_set": 3,
+        "best_of": 1,
+        "sets": [[3, 0]],
+    }), 201)
+    assert short["elo"] is None, short
+    assert expect(client.get("/api/matches"))[0]["elo_p1"] is None
 
     tournament = expect(client.post("/api/tournaments", json={
         "name": f"Torneio Smoke {suffix}",
@@ -114,8 +135,11 @@ try:
         "tournament_match_id": game["id"],
         "sets": [[3, 0]],
     }), 201)
+    assert result["elo"] is None, result
     assert result["tournament_result"]["tournament"]["status"] == "finished", result
     expect(client.get(f"/api/tournaments/{tournament['id']}"), 404)
+    # Mesmo após o evento ser excluído, a partida continua marcada como de torneio.
+    expect(client.put(f"/api/matches/{result['id']}", json={"sets": [[0, 3]]}, headers=admin), 409)
 
     expect(client.post("/api/mesa/occupy", json={"name": "Smoke", "minutes": 1}))
     expect(client.post("/api/mesa/release"))
@@ -123,7 +147,7 @@ try:
     expect(client.post("/api/mesa/next"))
 
     stats = expect(client.get("/api/stats"))
-    assert stats["athletes"] == 2 and stats["matches"] == 2 and stats["tournaments"] == 0, stats
+    assert stats["athletes"] == 2 and stats["matches"] == 3 and stats["tournaments"] == 0, stats
 
     # Troca de senha: valida a atual, grava hash novo e invalida tokens antigos.
     new_password = "nova-" + secrets.token_urlsafe(18)

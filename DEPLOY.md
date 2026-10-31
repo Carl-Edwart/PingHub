@@ -165,9 +165,12 @@ Esse erro significa que a conexão funcionou, mas as consultas não encontraram 
 
 ## Inicializar um banco existente sem perder dados
 
-- **Banco vazio:** basta fazer deploy/reiniciar. O boot cria as 9 tabelas, colunas e índices.
+- **Banco vazio:** basta fazer deploy/reiniciar. O boot cria as 10 tabelas, colunas e índices.
 - **Banco já com o esquema do PingHub:** nenhuma ação especial; o boot adiciona apenas colunas e
   índices que faltam. Faça backup antes de qualquer atualização relevante.
+- **Atualização da regra de ELO:** o primeiro boot depois desta versão recalcula uma única vez o
+  ELO, V/D e `elo_history` de todo o histórico e grava `elo_rules_version=2` na tabela `settings`.
+  Enquanto o recálculo roda, o boot pode demorar um pouco mais; os boots seguintes não repetem.
 - **Dados em outro schema:** configure `DB_SCHEMA` com esse schema. A aplicação usa exatamente
   esse valor em todas as conexões e não cria duplicatas em `public`.
 - **Nunca** execute `DROP TABLE`, `TRUNCATE` ou recrie tabelas para "corrigir" o 42P01. Se houver
@@ -184,8 +187,10 @@ cópia final. Faça primeiro um ensaio em um PostgreSQL descartável.
 4. Migre os dados com uma ferramenta MySQL→PostgreSQL, mapeando as tabelas `athletes`,
    `tournaments`, `tournament_players`, `matches`, `tournament_matches`, `elo_history`,
    `mesa_state` e `mesa_queue`. Preserve IDs e relações; confira datas, JSON dos sets, nulos e os
-   campos `mode`, `modality`, `winner` e `status`. A tabela `admin_credentials` não vem do MySQL:
-   ela é criada pelo boot e recebe o hash da senha inicial.
+   campos `mode`, `modality`, `winner`, `tournament_match` e `status`. As tabelas
+   `admin_credentials` e `settings` não vêm do MySQL: o boot as cria e grava o hash da senha
+   inicial e a versão da regra de ELO. Depois da importação, o primeiro boot recalcula o ELO com a
+   regra atual.
 5. Depois de importar IDs explícitos, confirme que as sequências `SERIAL` do PostgreSQL avançam
    além dos maiores IDs importados.
 6. Compare contagens por tabela e valide atletas, ranking/ELO, histórico, resultados e fila. Rode

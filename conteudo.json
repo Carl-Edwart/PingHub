@@ -477,7 +477,7 @@
    "id": 7,
    "category": "jogo",
    "title": "Partidas rápidas com fila",
-   "text": "Com 3 ou mais pessoas esperando, as partidas avulsas são de 1 set de 3 pontos.",
+   "text": "Com 3 ou mais pessoas esperando, as partidas avulsas são de 1 set de 3 pontos. Essas partidas contam vitória/derrota, mas não alteram o ELO.",
    "source": "Regra local (exemplo — edite conteudo.json)"
   },
   {
@@ -507,14 +507,14 @@
    "id": 1,
    "category": "sistema",
    "title": "ELO inicial e variação",
-   "text": "Todo atleta começa com ELO 1000. Partidas avulsas usam K=32 e partidas de torneio usam K=16, então o torneio mexe menos no ranking.",
+   "text": "Todo atleta começa com ELO 1000. A partida avulsa usa base K=32 e a de torneio, K=16. O resultado é ajustado por três fatores: sets acirrados valem mais (0,75x a 1,25x), jogadores com mais partidas têm peso maior (0,75x a 1,25x, máximo a partir de 50 partidas em média) e vencer alguém de ELO maior rende bônus de até 1,5x. Quem perde para um adversário de ELO menor perde mais pontos. A variação fica entre 1 e 64 pontos, sempre igual e oposta para os dois jogadores.",
    "source": "Regra do PingHub"
   },
   {
    "id": 2,
    "category": "sistema",
    "title": "Quando o ELO muda",
-   "text": "Só em partidas competitivas individuais entre dois atletas cadastrados. Treinos, duplas e adversários anônimos não alteram o ELO (vitórias e derrotas contra anônimos continuam contando).",
+   "text": "Só em partidas competitivas individuais entre dois atletas cadastrados e com sets de 5 ou mais pontos. Sets de 3 pontos contam vitória/derrota e aparecem no histórico, mas não alteram o ELO. Treinos, duplas e adversários anônimos também não alteram o ELO (vitórias e derrotas contra anônimos continuam contando).",
    "source": "Regra do PingHub"
   },
   {
@@ -578,6 +578,13 @@
    "category": "sistema",
    "title": "Encerramento do torneio",
    "text": "Quando a última partida (incluindo a disputa de 3º lugar, se houver) termina, o PingHub mostra o resumo completo e remove o evento da lista automaticamente. Títulos, partidas e ELO continuam salvos.",
+   "source": "Regra do PingHub"
+  },
+  {
+   "id": 12,
+   "category": "sistema",
+   "title": "Correção de partidas",
+   "text": "O administrador pode corrigir o placar de uma partida avulsa no Histórico. O PingHub refaz o ELO, as vitórias/derrotas e o gráfico de evolução em ordem cronológica, porque uma partida antiga altera o cálculo das seguintes. Partidas de torneio não podem ser corrigidas para não quebrar a chave.",
    "source": "Regra do PingHub"
   }
  ]

@@ -45,9 +45,10 @@ PINGHUB_ENV=development python app.py
 ```
 
 Na inicialização — inclusive no boot do Gunicorn — a aplicação aplica o schema e as migrações
-(`DB_INIT_ON_START=1`). O comando `python app.py init-db` faz o mesmo manualmente. As 9 tabelas são
+(`DB_INIT_ON_START=1`). O comando `python app.py init-db` faz o mesmo manualmente. As 10 tabelas são
 criadas no schema `public` ou no valor de `DB_SCHEMA`; a inicialização é idempotente, usa advisory
-lock entre workers e não apaga dados.
+lock entre workers e não apaga dados. A tabela `settings` guarda a versão da regra de ELO aplicada
+ao histórico.
 
 ## Estrutura
 
@@ -104,17 +105,21 @@ variáveis no topo do `<style>`. Animações respeitam `prefers-reduced-motion`.
   Perfil com gráfico de ELO em verde (subiu) e vermelho (caiu), **valor do ELO visível em cada
   ponto**, pontos marcados/sofridos, sequência atual e maior sequência, ELO máximo, duração média
   e rival frequente.
-- **Partida:** seletores em botões (modo, modalidade, pontos, melhor de), observações, aviso de
-  *ponto de set* e *ponto de partida* (só no modo competitivo), **indicador de posse do saque a
-  partir de 7 pontos** (2 a 2; 1 a 1 após 10-10), troca de lado no set decisivo, atalhos de
-  teclado (← → pontuam, Backspace desfaz) e 1 time-out de 60 s por jogador, com os botões no topo
-  do placar e o aviso centralizado apenas enquanto está ativo.
+- **Partida:** seleção pesquisável de atletas com avatar, ELO e V/D (bottom sheet no celular),
+  seletores em botões (modo, modalidade, pontos, melhor de), observações, aviso de *ponto de set*
+  e *ponto de partida* (só no modo competitivo), **indicador de posse do saque a partir de 7
+  pontos** (2 a 2; 1 a 1 após 10-10), troca de lado no set decisivo, atalhos de teclado
+  (← → pontuam, Backspace desfaz) e 1 time-out de 60 s por jogador, com os botões no topo do
+  placar e o aviso centralizado apenas enquanto está ativo. O padrão é 11 pontos e melhor de 3;
+  sets de 3 pontos continuam disponíveis para jogos rápidos, mas não valem ELO.
 - **Cooperativo:** apenas tempo (minutos), sem pontos, sets, vencedor, ELO ou avisos de ponto.
 - **Torneios:** local, sorteio da chave aleatório ou por **cabeças de chave segundo o ELO** e
   **disputa opcional de 3º lugar** em eliminatórias com 4+ atletas. Ao terminar, o resumo
   completo (pódio e resultados) é exibido e o evento é removido automaticamente; títulos,
   partidas e ELO continuam salvos.
-- **Histórico:** todas as partidas com busca, detalhe dos sets, torneio, duração e exportação CSV.
+- **Histórico:** todas as partidas com busca, detalhe dos sets, torneio, duração, pontos de ELO
+  ganhos/perdidos por jogador e exportação CSV. No celular a lista vira cards; o administrador pode
+  corrigir o placar de partidas avulsas e o sistema recalcula todo o ELO seguinte.
 - **Regras:** ~30 regras ITTF (saque, jogo, duplas, equipamento, arbitragem), regras da mesa local
   e a aba **Regras do sistema** (como o ELO, as chaves e o placar funcionam). Tudo editável em
   `conteudo.json`.
@@ -127,7 +132,7 @@ variáveis no topo do `<style>`. Animações respeitam `prefers-reduced-motion`.
 | Recurso | Rotas |
 |---|---|
 | Atletas | `GET/POST /api/athletes` · `GET/PUT/DELETE /api/athletes/<id>` · `GET /api/athletes/<id>/photo` |
-| Partidas | `POST /api/matches` (vencedor, ELO e avanço do torneio) · `GET /api/matches?limit=&q=` |
+| Partidas | `POST /api/matches` (vencedor, ELO e avanço do torneio) · `GET /api/matches?limit=&q=` · `PUT /api/matches/<id>` (corrige partida avulsa) |
 | Estatísticas | `GET /api/stats` |
 | Ranking | `GET /api/ranking?q=` · `GET /api/export/ranking.csv` · `GET /api/export/matches.csv` |
 | Torneios | `GET/POST /api/tournaments` · `GET/DELETE /api/tournaments/<id>` |
@@ -140,7 +145,8 @@ variáveis no topo do `<style>`. Animações respeitam `prefers-reduced-motion`.
 
 - **Todos (free):** consultar ranking, atletas, histórico, conteúdo e mesa; criar e salvar
   partidas; usar a fila da mesa.
-- **Administrador:** alterar/criar/excluir atletas, criar/excluir torneios e trocar a própria senha.
+- **Administrador:** alterar/criar/excluir atletas, criar/excluir torneios, corrigir o placar de
+  partidas avulsas e trocar a própria senha.
 - A senha admin fica apenas como hash **scrypt** na tabela `admin_credentials`, nunca em texto. No
   primeiro boot, `ADMIN_PASSWORD` cria esse hash se ainda não existir; depois a variável pode ser
   removida, pois não sobrescreve uma senha já alterada.
@@ -161,11 +167,21 @@ variáveis no topo do `<style>`. Animações respeitam `prefers-reduced-motion`.
   partir de 11) e a partida só é salva decidida.
 - Set até N pontos (3–21); acima de 11 exige 2 de vantagem. Saque troca a cada 2 pontos (a cada 1
   após 10-10).
-- Partida avulsa começa com sets de 3 pontos e melhor de 1; torneios usam a configuração escolhida
-  na criação.
+- Partida avulsa começa com sets de 11 pontos e melhor de 3; torneios usam a configuração escolhida
+  na criação. Sets de 3 pontos ficam disponíveis para jogos rápidos.
 - **Cooperativo** aceita apenas duração: não salva sets, não define vencedor e não altera ELO.
-- ELO (K=32 avulsa, K=16 torneio, inicial 1000) só muda em partida **competitiva individual entre
-  dois atletas cadastrados**.
+- ELO (inicial 1000; base K=32 avulsa, K=16 torneio) só muda em partida **competitiva individual
+  entre dois atletas cadastrados com sets de 5 ou mais pontos**. Sets de 3 pontos contam V/D e
+  entram no histórico, mas não mexem no ranking.
+- O delta do ELO combina o resultado esperado com três fatores: equilíbrio dos sets (0,75x a
+  1,25x), experiência dos dois jogadores (0,75x a 1,25x, saturando em 50 partidas em média) e
+  upset (até 1,5x quando o jogador de menor ELO vence). A perda do favorito é maior, o delta é
+  simétrico e fica limitado a 1–64 pontos.
+- O administrador pode corrigir o placar de uma partida avulsa no Histórico (`PUT
+  /api/matches/<id>`). A correção refaz ELO, V/D e `elo_history` de todo o histórico em ordem
+  cronológica. Partidas de torneio retornam `409`, pois alterariam a chave.
+- Na primeira inicialização após a mudança de regra, o boot recalcula uma vez o ELO de todas as
+  partidas e grava `elo_rules_version=2` em `settings`; nas inicializações seguintes não repete.
 - Ao salvar o resultado de um torneio o vencedor avança na chave. Em eliminatórias com 4+ atletas,
   o administrador pode ativar a disputa de 3º lugar; sem ela, os dois semifinalistas derrotados
   ficam empatados em 3º.

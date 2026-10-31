@@ -285,6 +285,52 @@ kbd { background:var(--surface2); border:1px solid var(--line2); border-bottom-w
 .to-time.to-low { color:var(--bad); animation:tagPulse 1s ease-in-out infinite; }
 .to-bar { height:8px; border-radius:99px; background:var(--line2); overflow:hidden; }
 .to-bar span { display:block; height:100%; width:100%; border-radius:99px; background:var(--warn); transition:width 1s linear; }
+
+/* ===== v4: seleção de atletas e histórico no celular ===== */
+.athlete-pick { display:flex; align-items:center; gap:.75rem; width:100%; padding:.65rem .75rem; border-radius:14px;
+  border:1px solid var(--line2); background:var(--bg2); color:var(--text); text-align:left; transition:border-color .25s, background .25s; }
+.athlete-pick:hover, .athlete-pick:focus-visible { border-color:var(--accent); background:var(--surface2); }
+.athlete-pick .pick-body { flex:1; min-width:0; }
+.athlete-pick .pick-name { display:block; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.athlete-pick .pick-meta { display:block; color:var(--muted); font-size:.78rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.athlete-pick > .bi { color:var(--muted); }
+.athlete-sheet { position:fixed; inset:0; z-index:1060; display:flex; align-items:flex-end; justify-content:center;
+  padding:0; background:rgba(5,8,14,.78); backdrop-filter:blur(5px); animation:fadeIn .2s ease both; }
+.athlete-sheet-card { width:min(640px,100%); max-height:88vh; display:flex; flex-direction:column; padding:1rem;
+  padding-bottom:calc(1rem + env(safe-area-inset-bottom)); border:1px solid var(--line2); border-radius:20px 20px 0 0;
+  background:linear-gradient(180deg,var(--surface2),var(--surface)); box-shadow:0 -20px 60px -20px rgba(0,0,0,.8);
+  animation:sheetUp .28s var(--ease) both; }
+.athlete-list { flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
+.athlete-option { display:flex; align-items:center; gap:.7rem; width:100%; padding:.65rem .5rem; border:0;
+  border-bottom:1px solid var(--line); background:transparent; color:var(--text); text-align:left; border-radius:10px; }
+.athlete-option:last-child { border-bottom:0; }
+.athlete-option:hover, .athlete-option:focus-visible { background:var(--surface2); }
+.athlete-option small { display:block; color:var(--muted); }
+.pick-card { min-height:58px; margin:0; transition:border-color .25s, background .25s, transform .2s; }
+.pick-card:active { transform:scale(.99); }
+.pick-card:has(.pick:checked) { border-color:var(--accent); background:linear-gradient(180deg,rgba(59,130,246,.16),var(--surface)); }
+.pick-card:has(.pick:checked) .avatar { box-shadow:0 0 0 3px rgba(59,130,246,.25); }
+.pick-card .form-check-input { width:1.15rem; height:1.15rem; flex:none; }
+.history-card { border:1px solid var(--line); border-radius:14px; background:linear-gradient(180deg,var(--surface),var(--bg2)); padding:.85rem; }
+.history-card + .history-card { margin-top:.65rem; }
+.history-score { font-family:var(--font-display); font-size:1.5rem; font-weight:700; white-space:nowrap; }
+.history-side { min-width:0; }
+.history-side b { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.set-editor-row { display:grid; grid-template-columns:1fr auto 1fr auto; gap:.45rem; align-items:center; margin-bottom:.5rem; }
+.set-editor-row input { text-align:center; font-weight:700; }
+@keyframes sheetUp { from{opacity:0;transform:translateY(28px)} to{opacity:1;transform:none} }
+@media (min-width:576px){
+  .athlete-sheet { align-items:center; padding:1rem; }
+  .athlete-sheet-card { border-radius:20px; }
+}
+@media (max-width:576px){
+  .form-control, .form-select { font-size:16px; padding:.7rem .8rem; }
+  .seg-btn { padding:.68rem .5rem; }
+  #pointsBox .seg { display:grid; grid-template-columns:repeat(4,1fr); }
+  .btn-lg { padding:.75rem 1rem; }
+  .athlete-pick { padding:.7rem .8rem; }
+  .history-card { padding:.8rem; }
+}
   </style>
 </head>
 <body>
@@ -819,7 +865,8 @@ async function athleteProfile(id) {
     <div class="card p-3 mb-4"><h5>Evolução do ELO</h5>${eloChart(elo_history)}</div>
     <div class="row g-3"><div class="col-lg-7"><div class="card p-3"><h5>Últimas partidas</h5><table class="table table-sm mb-0"><tbody>
       ${recent.map(m => `<tr><td>${fmtDate(m.created_at)}</td><td>vs ${esc(m.opponent)}</td><td>${m.mode === 'cooperative' ? `<span class="text-secondary">${fmtDur(m.duration || 0)}</span>` : `${m.sets_me} x ${m.sets_opp}`}</td>
-        <td>${m.mode === 'cooperative' ? '<span class="text-secondary">Treino</span>' : m.result === 'W' ? '<span class="up">V</span>' : m.result === 'L' ? '<span class="down">D</span>' : '<span class="text-secondary">—</span>'}</td></tr>`).join('')
+        <td>${m.mode === 'cooperative' ? '<span class="text-secondary">Treino</span>' : m.result === 'W' ? '<span class="up">V</span>' : m.result === 'L' ? '<span class="down">D</span>' : '<span class="text-secondary">—</span>'}
+          ${m.elo_delta != null ? delta(m.elo_delta) : ''}</td></tr>`).join('')
         || '<tr><td class="text-secondary">Nenhuma partida.</td></tr>'}</tbody></table></div></div>
       <div class="col-lg-5"><div class="card p-3"><h5>Torneios</h5>
       ${tournaments.map(t => `<a class="d-block text-decoration-none py-1" href="#/torneio/${t.id}">${t.champion_id === a.id ? '🏆 ' : ''}${esc(t.name)} <small class="text-secondary">${fmtDate(t.date)}</small></a>`).join('')
@@ -869,14 +916,76 @@ document.addEventListener('click', e => {
 
 PH.routes.partida = async () => {
   ATHLETES = await api('/athletes');
-  const opts = '<option value="">Anônimo (digitar nome)</option>' +
-    ATHLETES.map(a => {
-      const tags = [HAND[a.hand], GAME_STYLE[a.game_style]].filter(Boolean).join(' · ');
-      return `<option value="${a.id}">${esc(a.name)} (ELO ${a.elo}${tags ? ' · ' + tags : ''})</option>`;
-    }).join('');
+  const byId = id => ATHLETES.find(a => String(a.id) === String(id));
+  const closePickers = () => $$('.athlete-sheet').forEach(el => el.remove());
+
+  const paint = n => {
+    const a = byId($('#sel' + n).value), av = $('#pickAv' + n);
+    $('#pickName' + n).textContent = a ? a.name : 'Anônimo / digitar nome';
+    $('#pickMeta' + n).textContent = a ? `ELO ${a.elo} · ${a.wins}V/${a.losses}D` : 'Escolha um atleta ou digite o nome';
+    if (av) av.outerHTML = a
+      ? avatar(a).replace('class="avatar"', `class="avatar" id="pickAv${n}"`)
+      : `<span class="avatar" id="pickAv${n}">?</span>`;
+  };
+
+  const openPicker = side => {
+    closePickers();
+    const overlay = document.createElement('div');
+    overlay.className = 'athlete-sheet';
+    overlay.innerHTML = `<div class="athlete-sheet-card" role="dialog" aria-modal="true" aria-label="Escolher jogador ${side}">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h5 class="m-0">Jogador ${side}</h5>
+        <button type="button" class="btn btn-sm btn-outline-light" data-close aria-label="Fechar"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <input id="pickSearch${side}" class="form-control mb-2" placeholder="Buscar atleta…" autocomplete="off" inputmode="search">
+      <div class="athlete-list" id="pickList${side}"></div></div>`;
+    document.body.append(overlay);
+    const draw = () => {
+      const term = $('#pickSearch' + side).value.trim().toLowerCase();
+      const rows = ATHLETES.filter(a => !term || `${a.name} ${a.nickname || ''}`.toLowerCase().includes(term));
+      const anon = !term ? `<button type="button" class="athlete-option" data-anon="1">
+        <span class="avatar">?</span><span class="flex-grow-1"><b>Anônimo</b><small>Digitar o nome manualmente</small></span>
+        <i class="bi bi-pencil"></i></button>` : '';
+      $('#pickList' + side).innerHTML = anon + rows.map(a => `<button type="button" class="athlete-option" data-id="${a.id}">
+        ${avatar(a)}<span class="flex-grow-1"><b>${esc(a.name)}</b><small>ELO ${a.elo} · ${a.wins}V/${a.losses}D${a.nickname ? ' · ' + esc(a.nickname) : ''}</small></span>
+        <i class="bi bi-chevron-right"></i></button>`).join('')
+        || '<p class="text-secondary text-center py-3 mb-0">Nenhum atleta encontrado.</p>';
+    };
+    draw();
+    $('#pickSearch' + side).focus();
+    $('#pickSearch' + side).addEventListener('input', draw);
+    const onKey = e => { if (e.key === 'Escape') { closePickers(); document.removeEventListener('keydown', onKey); } };
+    document.addEventListener('keydown', onKey);
+    const choose = id => {
+      document.removeEventListener('keydown', onKey);
+      $('#sel' + side).value = id || '';
+      paint(side);
+      closePickers();
+      const nm = $('#nm' + side);
+      nm.classList.toggle('d-none', !!id);
+      if (!id) nm.focus();
+      $('#sel' + side).dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    overlay.addEventListener('click', e => {
+      if (e.target === overlay || e.target.closest('[data-close]')) return closePickers();
+      const anon = e.target.closest('[data-anon]');
+      if (anon) return choose('');
+      const row = e.target.closest('[data-id]');
+      if (row) choose(row.dataset.id);
+    });
+  };
+
   const side = n => `<div class="col-md-6"><label class="form-label fw-semibold"><span class="pdot" style="background:var(--p${n})"></span>Jogador ${n}</label>
-    <select id="sel${n}" class="form-select mb-2">${opts}</select>
-    <input id="nm${n}" class="form-control" placeholder="Nome" maxlength="100"></div>`;
+    <div id="pickerWrap${n}">
+      <input type="hidden" id="sel${n}" value="">
+      <button type="button" class="athlete-pick" id="pick${n}" data-side="${n}" aria-label="Escolher jogador ${n}">
+        <span class="avatar" id="pickAv${n}">?</span>
+        <span class="pick-body"><span class="pick-name" id="pickName${n}">Anônimo / digitar nome</span>
+          <span class="pick-meta" id="pickMeta${n}">Escolha um atleta ou digite o nome</span></span>
+        <i class="bi bi-chevron-right"></i>
+      </button>
+    </div>
+    <input id="nm${n}" class="form-control mt-2" placeholder="Nome" maxlength="100"></div>`;
   render(`<h2 class="ph-title mb-3">Nova partida</h2><div class="card p-3 p-md-4" style="max-width:760px">
     <div class="row g-3">
       <div class="col-12 col-sm-6"><label class="form-label">Modo</label>
@@ -885,9 +994,10 @@ PH.routes.partida = async () => {
         ${seg('modality', [['singles', 'Individual'], ['doubles', 'Duplas']], 'singles')}</div>
       <div class="col-12"><div class="hint" id="modeHint"></div></div>
       <div class="col-12" id="pointsBox"><label class="form-label">Pontos por set</label>
-        ${seg('points', [3, 5, 7, 9, 11, 15, 21].map(p => [p, p]), 3)}</div>
+        ${seg('points', [3, 5, 7, 9, 11, 15, 21].map(p => [p, p]), 11)}
+        <div class="hint mt-2" id="eloHint"></div></div>
       <div class="col-12" id="boBox"><label class="form-label">Melhor de (sets)</label>
-        ${seg('bo', [1, 3, 5, 7].map(p => [p, p]), 1)}</div>
+        ${seg('bo', [1, 3, 5, 7].map(p => [p, p]), 3)}</div>
       <div class="col-12 d-none" id="serverBox"><label class="form-label">Saque inicial</label>
         ${seg('server', [['1', 'Jogador 1'], ['2', 'Jogador 2']], '1')}
         <div class="hint mt-2">A posse do saque troca a cada 2 pontos e, a partir de 10-10, a cada ponto.</div></div>
@@ -905,14 +1015,20 @@ PH.routes.partida = async () => {
     $('#serverBox').classList.toggle('d-none', !serve); $('#minBox').classList.toggle('d-none', !coop);
     $('#modeHint').innerHTML = coop
       ? '<i class="bi bi-people"></i> Treino em conjunto: apenas o tempo, sem pontos, sets, vencedor, ELO ou avisos de ponto.'
-      : '<i class="bi bi-trophy"></i> Valendo: o placar segue as regras, define o vencedor e atualiza o ELO (individual, entre atletas cadastrados).';
+      : '<i class="bi bi-trophy"></i> Valendo: o placar segue as regras e define o vencedor.';
+    $('#eloHint').innerHTML = coop ? '' : +val('points') >= 5
+      ? '<i class="bi bi-graph-up-arrow"></i> Esta partida vale ELO: sets de 5 ou mais pontos.'
+      : '<i class="bi bi-info-circle"></i> Sets de 3 pontos contam vitória/derrota, mas não alteram o ELO.';
     [1, 2].forEach(n => {
-      $('#sel' + n).classList.toggle('d-none', dbl);
-      $('#nm' + n).classList.toggle('d-none', !dbl && $('#sel' + n).value !== '');
+      $('#pickerWrap' + n).classList.toggle('d-none', dbl);
+      $('#nm' + n).classList.toggle('d-none', !dbl && !!$('#sel' + n).value);
       $('#nm' + n).placeholder = dbl ? 'Ex.: Ana / Bia' : 'Nome';
+      paint(n);
     });
   };
   $$('#mode, #modality, #points, #sel1, #sel2').forEach(e => e.addEventListener('change', sync));
+  [1, 2].forEach(n => $('#pick' + n).addEventListener('click', () => openPicker(String(n))));
+  PH.cleanup = closePickers;
   sync();
 
   $('#start').addEventListener('click', () => {
@@ -1141,7 +1257,8 @@ function showResult(cfg, res, sets, duration) {
     <h2>${winner ? '🏆 ' + esc(winner) : 'Partida encerrada'}</h2>
     <div class="display-3 fw-bold">${res.sets_p1} x ${res.sets_p2}</div>
     <div class="text-secondary mb-3">${sets.map(s => s.join('-')).join(' · ')} • ${fmtDur(duration)}</div>
-    ${res.elo ? `<div class="text-start border-top pt-3 mb-3">${eloRow(cfg.p1.name, res.elo.player1)}${eloRow(cfg.p2.name, res.elo.player2)}</div>` : ''}
+    ${res.elo ? `<div class="text-start border-top pt-3 mb-3">${eloRow(cfg.p1.name, res.elo.player1)}${eloRow(cfg.p2.name, res.elo.player2)}</div>`
+      : `<div class="hint border-top pt-3 mb-3"><i class="bi bi-info-circle"></i> Esta partida não alterou o ELO (sets de 3 pontos, duplas ou adversário anônimo).</div>`}
     <div class="d-flex gap-2 justify-content-center flex-wrap">
       ${cfg.tid ? `<a class="btn btn-ph" href="#/torneio/${cfg.tid}">Voltar ao torneio</a>` :
         `<button id="again" class="btn btn-ph">Revanche</button><a class="btn btn-outline-light" href="#/partida">Nova partida</a>`}
@@ -1200,6 +1317,7 @@ async function tournamentForm() {
       ${[3, 5, 7, 9, 11, 15, 21].map(p => `<option ${p === 11 ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
     <div class="col-md-4"><label class="form-label">Melhor de</label><select id="bo" class="form-select">
       ${[1, 3, 5, 7].map(p => `<option ${p === 3 ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
+    <div class="col-12"><div class="hint" id="tourEloHint"></div></div>
     <div class="col-md-8"><label class="form-label">Local <small class="text-secondary">(opcional)</small></label><input id="loc" class="form-control" maxlength="120"></div>
     <div class="col-md-4" id="seedBox"><label class="form-label">Sorteio da chave</label><select id="seed" class="form-select">
       <option value="random">Aleatório</option><option value="elo">Cabeças por ELO</option></select></div>
@@ -1208,8 +1326,12 @@ async function tournamentForm() {
       <label class="form-check-label" for="third">Disputar o 3º lugar</label></div>
       <div class="hint">Partida extra entre os perdedores das semifinais. Sem ela, os dois semifinalistas derrotados ficam empatados em 3º.</div></div>
     <div class="col-12"><label class="form-label">Participantes <small class="text-secondary" id="cnt"></small></label>
-      <div class="row g-2">${ath.map(a => `<div class="col-6"><label class="card p-2 flex-row align-items-center gap-2 clickable">
-        <input type="checkbox" class="form-check-input m-0 pick" value="${a.id}">${avatar(a)}<span>${esc(a.name)}</span></label></div>`).join('')
+      <input id="pickSearch" class="form-control mb-2" placeholder="Buscar participante…" autocomplete="off" inputmode="search">
+      <div class="row g-2" id="athGrid">${ath.map(a => `<div class="col-12 col-sm-6" data-search="${esc(`${a.name} ${a.nickname || ''}`.toLowerCase())}">
+        <label class="card pick-card p-2 flex-row align-items-center gap-2 clickable">
+          <input type="checkbox" class="form-check-input m-0 pick" value="${a.id}">${avatar(a)}
+          <span class="flex-grow-1"><b class="d-block">${esc(a.name)}</b><small class="text-secondary">ELO ${a.elo}</small></span>
+        </label></div>`).join('')
         || '<p class="text-secondary">Cadastre atletas primeiro.</p>'}</div></div>
     <div class="col-12 d-flex gap-2"><button id="go" class="btn btn-ph btn-go"><i class="bi bi-check-lg"></i> Criar torneio</button><a href="#/torneio" class="btn btn-outline-secondary">Cancelar</a></div></div></div>`);
   const syncThird = () => {
@@ -1219,8 +1341,18 @@ async function tournamentForm() {
     $('#seedBox').classList.toggle('d-none', $('#type').value !== 'knockout');
   };
   const count = () => { $('#cnt').textContent = `(${$$('.pick:checked').length} selecionados)`; syncThird(); };
+  const syncElo = () => {
+    $('#tourEloHint').innerHTML = +$('#points').value >= 5
+      ? '<i class="bi bi-graph-up-arrow"></i> As partidas deste torneio valem ELO.'
+      : '<i class="bi bi-info-circle"></i> Sets de 3 pontos contam vitória/derrota, mas não alteram o ELO.';
+  };
   $('#type').addEventListener('change', syncThird);
-  $$('.pick').forEach(c => c.addEventListener('change', count)); count();
+  $('#points').addEventListener('change', syncElo);
+  $('#pickSearch').addEventListener('input', () => {
+    const term = $('#pickSearch').value.trim().toLowerCase();
+    $$('#athGrid [data-search]').forEach(col => col.classList.toggle('d-none', !!term && !col.dataset.search.includes(term)));
+  });
+  $$('.pick').forEach(c => c.addEventListener('change', count)); count(); syncElo();
   $('#go').addEventListener('click', async () => {
     try {
       const r = await api('/tournaments', { method: 'POST', body: { name: $('#name').value, date: $('#date').value, type: $('#type').value,
@@ -1362,23 +1494,122 @@ PH.routes.regras = async () => {
   await load();
 };
 
+function openMatchEditor(m, reload) {
+  const competitive = m.mode === 'competitive';
+  const originalSeconds = m.duration || 0;
+  const initialMinutes = Math.round(originalSeconds / 60);
+  const setRow = s => `<div class="set-editor-row">
+    <input class="form-control set-a" type="number" inputmode="numeric" min="0" max="99" value="${s && s.length ? s[0] : ''}" aria-label="Pontos do jogador 1">
+    <span class="text-secondary">×</span>
+    <input class="form-control set-b" type="number" inputmode="numeric" min="0" max="99" value="${s && s.length ? s[1] : ''}" aria-label="Pontos do jogador 2">
+    <button type="button" class="btn btn-sm btn-outline-danger" data-remove-set aria-label="Remover set"><i class="bi bi-x-lg"></i></button></div>`;
+  const overlay = document.createElement('div');
+  overlay.className = 'athlete-sheet';
+  overlay.innerHTML = `<div class="athlete-sheet-card" role="dialog" aria-modal="true" aria-label="Corrigir partida">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h5 class="m-0">Corrigir partida</h5>
+      <button type="button" class="btn btn-sm btn-outline-light" data-close aria-label="Fechar"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div class="text-secondary small mb-2">${esc(m.player1_name)} <span class="mx-1">vs</span> ${esc(m.player2_name)}${m.tournament_match ? ' · partida de torneio' : ''}</div>
+    ${m.tournament_match ? '<div class="alert alert-warning py-2 small">Partidas de torneio não podem ser corrigidas porque alteram a chave.</div>' : ''}
+    ${competitive ? `<div class="row g-2 mb-3">
+      <div class="col-6"><label class="form-label small mb-1">Pontos por set</label>
+        <select id="editPoints" class="form-select">${[3, 5, 7, 9, 11, 15, 21].map(p => `<option ${p === m.points_per_set ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
+      <div class="col-6"><label class="form-label small mb-1">Melhor de</label>
+        <select id="editBo" class="form-select">${[1, 3, 5, 7].map(p => `<option ${p === m.best_of ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
+    </div>
+    <label class="form-label small mb-1">Placar dos sets</label>
+    <div id="editSets">${(m.sets_json && m.sets_json.length ? m.sets_json : [[null, null], [null, null]]).map(setRow).join('')}</div>
+    <button type="button" id="addSet" class="btn btn-sm btn-outline-light mb-3"><i class="bi bi-plus-lg"></i> Adicionar set</button>` : ''}
+    <label class="form-label small mb-1">Duração (min)</label>
+    <input id="editDuration" type="number" inputmode="numeric" min="0" max="1440" class="form-control mb-2" value="${initialMinutes}">
+    <label class="form-label small mb-1">Observações</label>
+    <input id="editNotes" class="form-control mb-3" maxlength="200" value="${esc(m.notes || '')}">
+    <div class="d-flex gap-2"><button id="saveEdit" class="btn btn-ph btn-go flex-fill" ${m.tournament_match ? 'disabled' : ''}><i class="bi bi-check-lg"></i> Salvar correção</button>
+      <button type="button" class="btn btn-outline-secondary" data-close>Cancelar</button></div></div>`;
+  document.body.append(overlay);
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay || e.target.closest('[data-close]')) return close();
+    if (e.target.closest('[data-remove-set]')) {
+      const rows = $$('.set-editor-row', overlay);
+      if (rows.length > 1) e.target.closest('.set-editor-row').remove();
+      return;
+    }
+  });
+  $('#addSet', overlay)?.addEventListener('click', () => {
+    $('#editSets', overlay).insertAdjacentHTML('beforeend', setRow(null));
+  });
+  $('#saveEdit', overlay).addEventListener('click', async () => {
+    const minutes = +$('#editDuration', overlay).value || 0;
+    const body = { duration: minutes === initialMinutes ? originalSeconds : minutes * 60, notes: $('#editNotes', overlay).value };
+    if (competitive) {
+      const sets = $$('.set-editor-row', overlay).map(row => [
+        +$('.set-a', row).value, +$('.set-b', row).value,
+      ]).filter(s => s[0] !== 0 || s[1] !== 0);
+      if (!sets.length || sets.some(s => !Number.isFinite(s[0]) || !Number.isFinite(s[1]))) return toast('Preencha o placar dos sets.');
+      body.points_per_set = +$('#editPoints', overlay).value;
+      body.best_of = +$('#editBo', overlay).value;
+      body.sets = sets;
+    }
+    const btn = $('#saveEdit', overlay);
+    btn.disabled = true;
+    try {
+      await api('/matches/' + m.id, { method: 'PUT', body });
+      close();
+      await reload();
+      toast('Partida corrigida e ELO recalculado.', 'success');
+    } catch (e) {
+      btn.disabled = false;
+      toast(e.message);
+    }
+  });
+}
+
 PH.routes.historico = async () => {
   render(`<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3"><h2 class="ph-title m-0">Histórico</h2>
     <div class="d-flex gap-2"><input id="q" class="form-control" placeholder="Buscar jogador…">
-    <a class="btn btn-outline-light text-nowrap" href="/api/export/matches.csv"><i class="bi bi-download"></i> CSV</a></div></div><div id="list"></div>`);
+    <a class="btn btn-outline-light text-nowrap" href="/api/export/matches.csv"><i class="bi bi-download"></i> CSV</a></div></div>
+    <div class="hint mb-2"><span class="up">▲</span>/<span class="down">▼</span> são os pontos de ELO ganhos ou perdidos. Partidas de 3 pontos, duplas e adversários anônimos não alteram o ELO.</div>
+    <div id="list"></div>`);
+  PH.cleanup = () => $$('.athlete-sheet').forEach(el => el.remove());
+  let data = [];
   const load = async () => {
-    const rows = await api('/matches?limit=100&q=' + encodeURIComponent($('#q').value));
-    $('#list').innerHTML = rows.length ? `<div class="card"><div class="table-responsive"><table class="table align-middle mb-0">
-      <thead><tr><th>Data</th><th>Partida</th><th class="text-center">Sets</th><th class="d-none d-md-table-cell">Placar</th><th class="d-none d-lg-table-cell">Detalhes</th></tr></thead><tbody>
-      ${rows.map(m => `<tr><td class="small text-secondary text-nowrap">${new Date(m.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</td>
-        <td><span class="${m.winner === 1 ? 'fw-bold' : ''}">${esc(m.player1_name)}</span> <span class="text-secondary">vs</span> <span class="${m.winner === 2 ? 'fw-bold' : ''}">${esc(m.player2_name)}</span></td>
+    data = await api('/matches?limit=100&q=' + encodeURIComponent($('#q').value));
+    if (!data.length) { $('#list').innerHTML = '<p class="text-secondary">Nenhuma partida registrada.</p>'; return; }
+    const admin = isAdmin();
+    const canEdit = m => admin && !m.tournament_id && !m.tournament_match;
+    const editBtn = m => canEdit(m) ? `<button class="btn btn-sm btn-outline-light" data-edit="${m.id}" aria-label="Corrigir placar"><i class="bi bi-pencil"></i></button>` : '';
+    const badges = m => `<span class="badge text-bg-secondary">${m.mode === 'cooperative' ? 'Treino' : 'Competitivo'}</span>
+      ${m.modality === 'doubles' ? '<span class="badge text-bg-secondary">Duplas</span>' : ''}
+      ${m.tournament_name ? `<span class="badge text-bg-info">${esc(m.tournament_name)}</span>` : m.tournament_match ? '<span class="badge text-bg-info">Torneio</span>' : ''}
+      ${m.mode === 'competitive' && m.elo_p1 == null && m.elo_p2 == null ? '<span class="badge text-bg-secondary">sem ELO</span>' : ''}`;
+    const side = (name, win, elo) => `<span class="${win ? 'fw-bold' : ''}">${esc(name)}</span>${elo != null ? ' ' + delta(elo) : ''}`;
+    const setsText = m => m.mode === 'cooperative' ? 'Somente tempo' : (m.sets_json || []).map(s => s.join('-')).join(' · ');
+    const date = m => new Date(m.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+    $('#list').innerHTML = `<div class="d-none d-md-block card"><div class="table-responsive"><table class="table align-middle mb-0">
+      <thead><tr><th>Data</th><th>Partida</th><th class="text-center">Sets</th><th class="d-none d-lg-table-cell">Placar</th><th class="d-none d-lg-table-cell">Detalhes</th>${admin ? '<th></th>' : ''}</tr></thead><tbody>
+      ${data.map(m => `<tr><td class="small text-secondary text-nowrap">${date(m)}</td>
+        <td><div>${side(m.player1_name, m.winner === 1, m.elo_p1)}</div>
+          <div class="small text-secondary">vs</div><div>${side(m.player2_name, m.winner === 2, m.elo_p2)}</div></td>
         <td class="text-center fw-bold score-tile">${m.mode === 'cooperative' ? `<span class="text-secondary fs-6">${fmtDur(m.duration)}</span>` : `${m.sets_p1} x ${m.sets_p2}`}</td>
-        <td class="d-none d-md-table-cell small text-secondary">${m.mode === 'cooperative' ? 'Somente tempo' : (m.sets_json || []).map(s => s.join('-')).join(' · ')}</td>
-        <td class="d-none d-lg-table-cell small"><span class="badge text-bg-secondary">${m.mode === 'cooperative' ? 'Treino' : 'Competitivo'}</span>
-          ${m.modality === 'doubles' ? '<span class="badge text-bg-secondary">Duplas</span>' : ''}
-          ${m.tournament_name ? `<span class="badge text-bg-info">${esc(m.tournament_name)}</span>` : ''}
-          <span class="text-secondary">${fmtDur(m.duration)}</span>${m.notes ? ` <span class="text-secondary" title="${esc(m.notes)}"><i class="bi bi-chat-left-text"></i></span>` : ''}</td></tr>`).join('')}
-      </tbody></table></div></div>` : '<p class="text-secondary">Nenhuma partida registrada.</p>';
+        <td class="d-none d-lg-table-cell small text-secondary">${setsText(m)}</td>
+        <td class="d-none d-lg-table-cell small">${badges(m)} <span class="text-secondary">${fmtDur(m.duration)}</span>${m.notes ? ` <span class="text-secondary" title="${esc(m.notes)}"><i class="bi bi-chat-left-text"></i></span>` : ''}</td>
+        ${admin ? `<td class="text-end">${editBtn(m)}</td>` : ''}</tr>`).join('')}
+      </tbody></table></div></div>
+      <div class="d-md-none">${data.map(m => `<div class="history-card">
+        <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap"><small class="text-secondary">${date(m)}</small>
+          <div class="d-flex align-items-center gap-1 flex-wrap justify-content-end ms-auto">${badges(m)}${editBtn(m)}</div></div>
+        <div class="d-flex align-items-center gap-2 mt-2">
+          <div class="history-side flex-grow-1"><b class="${m.winner === 1 ? 'text-white' : ''}">${esc(m.player1_name)}</b>${m.elo_p1 != null ? delta(m.elo_p1) : ''}</div>
+          <div class="history-score">${m.mode === 'cooperative' ? fmtDur(m.duration) : `${m.sets_p1} x ${m.sets_p2}`}</div>
+          <div class="history-side text-end flex-grow-1"><b class="${m.winner === 2 ? 'text-white' : ''}">${esc(m.player2_name)}</b>${m.elo_p2 != null ? delta(m.elo_p2) : ''}</div>
+        </div>
+        <div class="small text-secondary mt-1">${setsText(m)} · ${fmtDur(m.duration)}${m.notes ? ` · ${esc(m.notes)}` : ''}</div></div>`).join('')}</div>`;
+    $$('[data-edit]').forEach(btn => btn.addEventListener('click', () => {
+      const m = data.find(row => row.id == btn.dataset.edit);
+      if (m) openMatchEditor(m, load);
+    }));
   };
   $('#q').addEventListener('input', debounce(load));
   await load();
