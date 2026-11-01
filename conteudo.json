@@ -507,7 +507,7 @@
    "id": 1,
    "category": "sistema",
    "title": "ELO inicial e variação",
-   "text": "Todo atleta começa com ELO 1000. A partida avulsa usa base K=32 e a de torneio, K=16. O resultado é ajustado por três fatores: sets acirrados valem mais (0,75x a 1,25x), jogadores com mais partidas têm peso maior (0,75x a 1,25x, máximo a partir de 50 partidas em média) e vencer alguém de ELO maior rende bônus de até 1,5x. Quem perde para um adversário de ELO menor perde mais pontos. A variação fica entre 1 e 64 pontos, sempre igual e oposta para os dois jogadores.",
+   "text": "Todo atleta começa com ELO 1000. A partida avulsa usa base K=32 e a de torneio, K=64: o torneio vale o dobro, porque a colocação no evento pesa mais que uma partida isolada. O resultado é ajustado por três fatores: sets acirrados valem mais (0,75x a 1,25x), jogadores com mais partidas têm peso maior (0,75x a 1,25x, máximo a partir de 50 partidas em média) e vencer alguém de ELO maior rende bônus de até 1,5x. Quem perde para um adversário de ELO menor perde mais pontos. A variação fica entre 1 e 64 pontos, sempre igual e oposta para os dois jogadores. No perfil e no comparativo, as colocações recebem uma pontuação de leitura (1º=5, 2º=3, 3º=1), separada do ELO.",
    "source": "Regra do PingHub"
   },
   {

@@ -681,12 +681,12 @@ def close(_exc=None):
 # ============ ELO ============
 ELO_INITIAL = 1000
 K_MATCH = 32        # partidas avulsas
-K_TOURNAMENT = 16   # partidas de torneio
+K_TOURNAMENT = 64   # partidas de torneio: o dobro do peso de uma partida avulsa
 RANKED_MIN_POINTS = 5          # sets de 3 pontos contam V/D, mas não mexem no ELO
 EXPERIENCE_FULL_MATCHES = 50   # a partir daqui o fator de experiência é máximo
 MAX_ELO_DELTA = 64
 RATING_RULES_KEY = "elo_rules_version"
-RATING_RULES_VERSION = "2"
+RATING_RULES_VERSION = "3"
 
 
 def calculate_elo(rating_a, rating_b, score_a, k=K_MATCH):

@@ -178,18 +178,21 @@ variáveis no topo do `<style>`. Animações respeitam `prefers-reduced-motion`.
 - Partida avulsa começa com sets de 11 pontos e melhor de 3; torneios usam a configuração escolhida
   na criação. Sets de 3 pontos ficam disponíveis para jogos rápidos.
 - **Cooperativo** aceita apenas duração: não salva sets, não define vencedor e não altera ELO.
-- ELO (inicial 1000; base K=32 avulsa, K=16 torneio) só muda em partida **competitiva individual
-  entre dois atletas cadastrados com sets de 5 ou mais pontos**. Sets de 3 pontos contam V/D e
-  entram no histórico, mas não mexem no ranking.
+- ELO (inicial 1000; base K=32 avulsa, K=64 torneio — o torneio vale o dobro) só muda em partida
+  **competitiva individual entre dois atletas cadastrados com sets de 5 ou mais pontos**. Sets de 3
+  pontos contam V/D e entram no histórico, mas não mexem no ranking.
 - O delta do ELO combina o resultado esperado com três fatores: equilíbrio dos sets (0,75x a
   1,25x), experiência dos dois jogadores (0,75x a 1,25x, saturando em 50 partidas em média) e
   upset (até 1,5x quando o jogador de menor ELO vence). A perda do favorito é maior, o delta é
   simétrico e fica limitado a 1–64 pontos.
+- O perfil e o comparativo exibem uma pontuação de colocações em torneios (1º=5, 2º=3, 3º=1) para
+  leitura rápida; ela não é somada ao ELO — o peso maior vem do K=64 nas partidas de torneio.
 - O administrador pode corrigir o placar de uma partida avulsa no Histórico (`PUT
   /api/matches/<id>`). A correção refaz ELO, V/D e `elo_history` de todo o histórico em ordem
   cronológica. Partidas de torneio retornam `409`, pois alterariam a chave.
 - Na primeira inicialização após a mudança de regra, o boot recalcula uma vez o ELO de todas as
-  partidas e grava `elo_rules_version=2` em `settings`; nas inicializações seguintes não repete.
+  partidas (torneios valendo o dobro) e grava `elo_rules_version=3` em `settings`; nas
+  inicializações seguintes não repete.
 - Ao salvar o resultado de um torneio o vencedor avança na chave. Em eliminatórias com 4+ atletas,
   o administrador pode ativar a disputa de 3º lugar; sem ela, os dois semifinalistas derrotados
   ficam empatados em 3º.

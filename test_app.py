@@ -151,7 +151,13 @@ assert r['elo'] and r['elo']['player1']['delta'] > 0 and r['elo']['player2']['de
 assert APP._experience_factor(5, 5, 5, 5) < APP._experience_factor(40, 50, 40, 50)
 assert APP._closeness_factor([[11, 1], [11, 2]], 11) < APP._closeness_factor([[11, 9], [11, 10]], 11)
 assert APP._upset_factor(1000, 1200) > APP._upset_factor(1200, 1000)
-print('partidas avulsas/validações ok; ELO só em 5+ pontos; pesos ok')
+base_match = {'points_per_set': 11, 'sets_json': [[11, 9], [11, 7]], 'winner': 1}
+a1 = {'elo': 1000, 'wins': 20, 'losses': 20}
+a2 = {'elo': 1000, 'wins': 20, 'losses': 20}
+casual_delta = APP._match_elo_deltas(base_match, a1, a2)[0]
+tournament_delta = APP._match_elo_deltas({**base_match, 'tournament_match': 1}, a1, a2)[0]
+assert APP.K_TOURNAMENT == 2 * APP.K_MATCH and tournament_delta > casual_delta > 0, (casual_delta, tournament_delta)
+print('partidas avulsas/validações ok; ELO só em 5+ pontos; torneio vale mais; pesos ok')
 
 # cadastro de atleta: empunhadura, mão e estilo de jogo
 r = post(A.create_athlete, {'name': 'Estilo', 'hand': 'canhoto', 'play_style': 'caneta',

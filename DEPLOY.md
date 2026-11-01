@@ -169,7 +169,8 @@ Esse erro significa que a conexão funcionou, mas as consultas não encontraram 
 - **Banco já com o esquema do PingHub:** nenhuma ação especial; o boot adiciona apenas colunas e
   índices que faltam. Faça backup antes de qualquer atualização relevante.
 - **Atualização da regra de ELO:** o primeiro boot depois desta versão recalcula uma única vez o
-  ELO, V/D e `elo_history` de todo o histórico e grava `elo_rules_version=2` na tabela `settings`.
+  ELO, V/D e `elo_history` de todo o histórico com a regra nova (partidas de torneio com K=64, o
+  dobro das avulsas) e grava `elo_rules_version=3` na tabela `settings`.
   Enquanto o recálculo roda, o boot pode demorar um pouco mais; os boots seguintes não repetem.
 - **Dados em outro schema:** configure `DB_SCHEMA` com esse schema. A aplicação usa exatamente
   esse valor em todas as conexões e não cria duplicatas em `public`.

@@ -136,6 +136,7 @@ a:hover .avatar, .clickable:hover .avatar { transform:scale(1.06); box-shadow:0 
 .elo-big { font-family:var(--font-display); background:linear-gradient(135deg,#7cb4ff,#34d399); -webkit-background-clip:text; background-clip:text; color:transparent; }
 .ph-medal { display:inline-flex; align-items:center; gap:.25rem; white-space:nowrap; line-height:1; transition:transform .35s var(--ease); }
 .ph-medal:hover { transform:translateY(-2px) scale(1.08); }
+.tournament-card { border-color:rgba(255,209,102,.35); background:linear-gradient(180deg,rgba(255,209,102,.09),var(--surface)); }
 
 /* ===== GRÁFICO DE ELO ===== */
 .ph-chart-wrap { overflow-x:auto; }
@@ -245,13 +246,39 @@ a:hover .avatar, .clickable:hover .avatar { transform:scale(1.06); box-shadow:0 
 .cmp-h2h-row .winner { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
 @media (max-width:576px){
-  .elo-summary { grid-template-columns:repeat(2,1fr); }
-  .elo-hint { display:none; }
-  .elo-zoombar .btn { padding:.24rem .45rem; }
-  .cmp-duel { grid-template-columns:1fr; }
-  .cmp-vs { flex-direction:row; gap:.75rem; min-height:0; }
-  .cmp-vs .cmp-form { margin-top:0; }
-  .cmp-vs-score { font-size:1.55rem; }
+  /* Resumo do gráfico: 4 números essenciais, sem "Máx./Mín." */
+  .elo-summary { grid-template-columns:repeat(2,minmax(0,1fr)); gap:.4rem; }
+  .elo-stat { padding:.45rem .55rem; }
+  .elo-stat span { font-size:.58rem; }
+  .elo-stat b { font-size:.95rem; }
+  .elo-stat-range, .cmp-max, .cmp-metric.cmp-secondary { display:none; }
+  .elo-summary-grid { grid-template-columns:repeat(3,1fr); }
+  .elo-hint { display:flex; gap:.35rem; align-items:flex-start; font-size:.7rem; line-height:1.35; margin-top:.45rem; }
+  .elo-hint i { margin-top:.08rem; }
+  .elo-zoombar .btn { padding:.3rem .5rem; }
+
+  /* Detalhe do ponto vira uma folha fixa na parte de baixo da tela */
+  .elo-detail { position:fixed; left:0; right:0; bottom:0; z-index:1085; margin:0;
+    padding:0 .5rem calc(.5rem + env(safe-area-inset-bottom)); pointer-events:none; }
+  .elo-detail-card { pointer-events:auto; max-height:62vh; overflow-y:auto; border-radius:16px;
+    box-shadow:0 -20px 45px -12px #000, 0 0 0 1px rgba(255,255,255,.04); animation:sheetUp .22s var(--ease) both; }
+  .elo-detail-card .elo-score { font-size:1.4rem; }
+
+  /* Duelo lado a lado, compacto, com o confronto direto no centro */
+  .cmp-duel { grid-template-columns:1fr auto 1fr; gap:.4rem; margin-bottom:.75rem; }
+  .cmp-side { padding:.65rem .4rem; border-radius:13px; }
+  .cmp-side .avatar { width:48px; height:48px; font-size:1.15rem; }
+  .cmp-side .cmp-name { font-size:.88rem; margin-top:.35rem; line-height:1.15; }
+  .cmp-side .cmp-nick { display:none; }
+  .cmp-side .cmp-elo { font-size:1.5rem; margin-top:.15rem; }
+  .cmp-side .cmp-sub { font-size:.66rem; }
+  .cmp-side .cmp-form { gap:.14rem; margin-top:.35rem; }
+  .cmp-side .cmp-form span { width:1.05rem; height:1.05rem; font-size:.54rem; }
+  .cmp-side .cmp-elomatches { display:none; }
+  .cmp-vs { min-width:0; padding:.4rem .3rem; border:0; background:transparent; flex-direction:column; gap:.15rem; }
+  .cmp-vs .cmp-vs-label, .cmp-vs .cmp-vs-sub { display:none; }
+  .cmp-vs-score { font-size:1.45rem; gap:.3rem; }
+  .cmp-metric { padding:.45rem .1rem; }
 }
 
 /* ===== CHAVES ===== */
@@ -289,7 +316,7 @@ a:hover .avatar, .clickable:hover .avatar { transform:scale(1.06); box-shadow:0 
 
 /* ===== CARREGAMENTO, ENTRADA DE PÁGINA ===== */
 .sk { height:96px; border-radius:16px; background:linear-gradient(90deg,var(--surface) 25%,var(--surface2) 50%,var(--surface) 75%); background-size:200% 100%; animation:shimmer 1.4s infinite; }
-#app.page-in > * { animation:pageIn .8s var(--ease) both; }
+#app.page-in > * { animation:pageIn .8s var(--ease) backwards; }
 #app.page-in > *:nth-child(2){animation-delay:.08s} #app.page-in > *:nth-child(3){animation-delay:.16s}
 #app.page-in > *:nth-child(4){animation-delay:.24s} #app.page-in > *:nth-child(n+5){animation-delay:.3s}
 /* a camada do time-out não pode herdar transform: isso prenderia o overlay fixo ao conteúdo */
@@ -771,7 +798,9 @@ function eloChartShell(opts = {}) {
     <div class="elo-legend" data-legend>${legend}</div>
     <div class="elo-summary" data-summary></div>
     <div class="elo-detail" data-detail hidden></div>
-    <div class="elo-hint"><i class="bi bi-hand-index-thumb"></i> Arraste para navegar · roda do mouse ou +/− para zoom · duplo clique restaura · clique num ponto para ver a partida.</div>
+    <div class="elo-hint"><i class="bi bi-hand-index-thumb"></i>
+      <span class="d-none d-sm-inline">Arraste para navegar · roda do mouse ou +/− para zoom · duplo clique restaura · clique num ponto para ver a partida.</span>
+      <span class="d-sm-none">Toque num ponto para ver a partida · arraste para navegar · use os botões para zoom.</span></div>
   </div>`;
 }
 
@@ -945,11 +974,11 @@ function initEloExplorer(root, series, opts = {}) {
       const values = pts.map(p => p.value);
       const max = values.length ? Math.max(...values) : null;
       const min = values.length ? Math.min(...values) : null;
-      summary.innerHTML = `<div class="elo-stat"><span>Partidas</span><b>${pts.length}</b></div>
-        <div class="elo-stat"><span>V / D</span><b>${wins}–${losses}</b></div>
-        <div class="elo-stat"><span>Saldo ELO</span><b class="${net > 0 ? 'up' : net < 0 ? 'down' : ''}">${signedPts(net)}</b></div>
-        <div class="elo-stat"><span>ELO final</span><b>${last ? last.value : '—'}</b></div>
-        <div class="elo-stat"><span>Máx. / Mín.</span><b>${max ?? '—'} / ${min ?? '—'}</b></div>`;
+      summary.innerHTML = `<div class="elo-stat elo-stat-matches"><span>Partidas</span><b>${pts.length}</b></div>
+        <div class="elo-stat elo-stat-record"><span>V / D</span><b>${wins}–${losses}</b></div>
+        <div class="elo-stat elo-stat-net"><span>Saldo ELO</span><b class="${net > 0 ? 'up' : net < 0 ? 'down' : ''}">${signedPts(net)}</b></div>
+        <div class="elo-stat elo-stat-final"><span>ELO final</span><b>${last ? last.value : '—'}</b></div>
+        <div class="elo-stat elo-stat-range"><span>Máx. / Mín.</span><b>${max ?? '—'} / ${min ?? '—'}</b></div>`;
       const netEl = $('[data-net]', root);
       if (netEl) netEl.innerHTML = `<span class="${net > 0 ? 'up' : net < 0 ? 'down' : 'text-secondary'}">Saldo no período: ${signedPts(net)} pts</span>`;
     } else {
@@ -965,7 +994,7 @@ function initEloExplorer(root, series, opts = {}) {
             <div><span>Partidas</span><b>${pts.length}</b></div>
             <div><span>V / D</span><b>${wins}–${losses}</b></div>
             <div><span>Saldo</span><b class="${net > 0 ? 'up' : net < 0 ? 'down' : ''}">${signedPts(net)}</b></div>
-            <div><span>Máx.</span><b>${pts.length ? Math.max(...pts.map(p => p.value)) : '—'}</b></div>
+            <div class="cmp-max"><span>Máx.</span><b>${pts.length ? Math.max(...pts.map(p => p.value)) : '—'}</b></div>
           </div></div>`;
       }).join('')}</div>`;
     }
@@ -1033,9 +1062,10 @@ function initEloExplorer(root, series, opts = {}) {
       grid += `<line class="ph-chart-grid" x1="${G.L}" y1="${yy.toFixed(1)}" x2="${G.W - G.R}" y2="${yy.toFixed(1)}" stroke="rgba(255,255,255,.09)" stroke-width="1"/>`;
       axis += `<text class="ph-chart-axis" x="${G.L - 8}" y="${(yy + 3.5).toFixed(1)}" text-anchor="end" fill="#8b95b8" font-size="11" font-weight="600">${Math.round(v)}</text>`;
     }
-    for (let i = 0; i < 5; i++) {
-      const at = state.viewStart + s * i / 4, xx = xAt(at);
-      const anchor = i === 0 ? 'start' : i === 4 ? 'end' : 'middle';
+    for (let i = 0; i < (G.W < 680 ? 3 : 5); i++) {
+      const steps = G.W < 680 ? 2 : 4;
+      const at = state.viewStart + s * i / steps, xx = xAt(at);
+      const anchor = i === 0 ? 'start' : i === steps ? 'end' : 'middle';
       grid += `<line class="ph-chart-grid" x1="${xx.toFixed(1)}" y1="${G.T}" x2="${xx.toFixed(1)}" y2="${G.H - G.B}" stroke="rgba(255,255,255,.09)" stroke-width="1"/>`;
       axis += `<text class="ph-chart-axis" x="${xx.toFixed(1)}" y="${G.H - 10}" text-anchor="${anchor}" fill="#8b95b8" font-size="11" font-weight="600">${eloChartTick(at, s)}</text>`;
     }
@@ -1108,7 +1138,7 @@ function initEloExplorer(root, series, opts = {}) {
     if (!tip) return;
     tip.innerHTML = html;
     tip.hidden = false;
-    const box = tip.getBoundingClientRect(), gap = 14;
+    const box = tip.getBoundingClientRect(), gap = 6;
     let left = clientX + gap, top = clientY + gap;
     if (left + box.width > innerWidth - 8) left = clientX - box.width - gap;
     if (top + box.height > innerHeight - 8) top = clientY - box.height - gap;
@@ -1312,6 +1342,9 @@ function titleMedals(t) {
     .join('');
 }
 
+// Colocações em torneios: o primeiro lugar vale bem mais que um pódio isolado.
+const placementScore = t => (t.first || 0) * 5 + (t.second || 0) * 3 + (t.third || 0) * 1;
+
 const ageOf = d => {
   if (!d) return null;
   const b = new Date(d), n = new Date();
@@ -1345,11 +1378,14 @@ async function athleteProfile(id) {
       <a class="btn btn-outline-light" href="#/comparativo/${id}" title="Comparar desempenho"><i class="bi bi-arrow-left-right"></i><span class="d-none d-sm-inline"> Comparar</span></a>
       ${isAdmin() ? `<a class="btn btn-outline-light" href="#/atletas/${id}/editar"><i class="bi bi-pencil"></i></a>
       <button id="del" class="btn btn-outline-danger"><i class="bi bi-trash"></i></button>` : ''}</div></div>
-    <div class="row g-3 mb-4 text-center">${[['Vitórias', a.wins], ['Derrotas', a.losses],
-      ['Aproveitamento', total ? Math.round(a.wins / total * 100) + '%' : '–'],
-      ['Sets ganhos', `${stats.sets_won}/${stats.sets_played}`]]
-      .map(([k, v]) => `<div class="col-6 col-md"><div class="card p-3 h-100"><div class="fs-3 fw-bold">${v}</div><div class="small text-secondary">${k}</div></div></div>`).join('')}
-      ${titles.total ? `<div class="col-12 col-md"><div class="card p-3 h-100"><div class="fs-4 fw-bold d-flex align-items-center justify-content-center gap-3 flex-wrap">${titleMedals(titles)}</div><div class="small text-secondary">Títulos</div></div></div>` : ''}</div>
+    <div class="row g-3 mb-4 text-center">
+      ${titles.total ? `<div class="col-12 col-md"><div class="card p-3 h-100 tournament-card">
+        <div class="fs-4 fw-bold d-flex align-items-center justify-content-center gap-3 flex-wrap">${titleMedals(titles)}</div>
+        <div class="small text-secondary">Colocações em torneios · ${placementScore(titles)} pts</div></div></div>` : ''}
+      ${[['Vitórias', a.wins], ['Derrotas', a.losses],
+        ['Aproveitamento', total ? Math.round(a.wins / total * 100) + '%' : '–'],
+        ['Sets ganhos', `${stats.sets_won}/${stats.sets_played}`]]
+        .map(([k, v]) => `<div class="col-6 col-md"><div class="card p-3 h-100"><div class="fs-3 fw-bold">${v}</div><div class="small text-secondary">${k}</div></div></div>`).join('')}</div>
     ${ex.extra}
     <div class="card p-3 mb-4"><div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
       <h5 class="m-0">Evolução do ELO</h5><span class="small text-secondary">${stats.elo_matches || 0} partidas com ELO</span></div>
@@ -1829,7 +1865,8 @@ PH.routes.comparativo = async (paramA, paramB) => {
   const paint = d => {
     const A = d.a.athlete, B = d.b.athlete;
     const sa = d.a.stats, sb = d.b.stats;
-    const ta = d.a.titles.total || 0, tb = d.b.titles.total || 0;
+    const taTitles = d.a.titles, tbTitles = d.b.titles;
+    const ta = placementScore(taTitles), tb = placementScore(tbTitles);
     const pct = (n, total) => total ? Math.round(n / total * 100) : null;
     const winPct = a => a.wins + a.losses ? Math.round(a.wins / (a.wins + a.losses) * 100) : null;
     const setPct = st => st.sets_played ? Math.round(st.sets_won / st.sets_played * 100) : null;
@@ -1838,18 +1875,18 @@ PH.routes.comparativo = async (paramA, paramB) => {
     const plain = v => v == null ? '—' : String(v);
     const streak = v => v > 0 ? `${v}V` : '—';
 
-    const side = (a, st, titles, form, cls) => `<a class="cmp-side ${cls}" href="#/atletas/${a.id}" title="Abrir perfil de ${esc(a.name)}">
+    const side = (a, st, podiums, form, cls) => `<a class="cmp-side ${cls}" href="#/atletas/${a.id}" title="Abrir perfil de ${esc(a.name)}">
       ${avatar(a, true)}<div class="cmp-name">${esc(a.name)}</div><div class="cmp-nick">${esc(a.nickname || '')}</div>
       <div class="cmp-elo">${a.elo}</div>
       <div class="cmp-sub">${a.wins}V / ${a.losses}D${winPct(a) != null ? ` · ${winPct(a)}%` : ''}</div>
       ${compareFormChips(form)}
-      <div class="badge text-bg-secondary mt-2">${titles} título${titles === 1 ? '' : 's'} · ${st.elo_matches || 0} partidas com ELO</div></a>`;
+      <div class="small text-secondary mt-2">${titleMedals(podiums) || 'Sem pódios'}<span class="cmp-elomatches"> · ${st.elo_matches || 0} partidas com ELO</span></div></a>`;
 
-    const metric = (label, va, vb, fmt = plain) => {
+    const metric = (label, va, vb, fmt = plain, cls = '') => {
       const aLead = va != null && (vb == null || va > vb), bLead = vb != null && (va == null || vb > va);
       const baseA = Math.max(0, Number(va) || 0), baseB = Math.max(0, Number(vb) || 0);
       const total = baseA + baseB, pctA = total ? baseA / total * 100 : 50;
-      return `<div class="cmp-metric"><div class="cmp-metric-head">
+      return `<div class="cmp-metric ${cls}"><div class="cmp-metric-head">
           <span class="cmp-value a ${aLead ? 'lead-a' : ''}">${fmt(va)}</span>
           <span class="cmp-label">${label}</span>
           <span class="cmp-value b ${bLead ? 'lead-b' : ''}">${fmt(vb)}</span></div>
@@ -1857,14 +1894,14 @@ PH.routes.comparativo = async (paramA, paramB) => {
     };
 
     const metrics = metric('ELO atual', A.elo, B.elo) +
-      metric('ELO máximo', sa.best_elo, sb.best_elo) +
+      metric('Colocações', ta, tb, v => `${v} pts`) +
       metric('Aproveitamento', winPct(A), winPct(B), pctText) +
       metric('Vitórias', A.wins, B.wins) +
       metric('Sets ganhos', setPct(sa), setPct(sb), pctText) +
-      metric('Pontos ganhos', pointPct(sa), pointPct(sb), pctText) +
-      metric('Vitórias seguidas', Math.max(0, sa.streak || 0), Math.max(0, sb.streak || 0), streak) +
-      metric('Melhor sequência', sa.best_streak || 0, sb.best_streak || 0, streak) +
-      metric('Títulos', ta, tb);
+      metric('ELO máximo', sa.best_elo, sb.best_elo, plain, 'cmp-secondary') +
+      metric('Pontos ganhos', pointPct(sa), pointPct(sb), pctText, 'cmp-secondary') +
+      metric('Vitórias seguidas', Math.max(0, sa.streak || 0), Math.max(0, sb.streak || 0), streak, 'cmp-secondary') +
+      metric('Melhor sequência', sa.best_streak || 0, sb.best_streak || 0, streak, 'cmp-secondary');
 
     const common = d.common.length ? `<div class="table-responsive"><table class="table table-sm cmp-common-table mb-0">
       <thead><tr><th class="text-end">${esc(A.name)}</th><th class="text-center">Adversário</th><th>${esc(B.name)}</th></tr></thead><tbody>
@@ -1894,17 +1931,17 @@ PH.routes.comparativo = async (paramA, paramB) => {
       <span><i class="pdot" style="background:${CMP_B_COLOR}"></i>${esc(B.name)}</span>`;
 
     $('#cmpBody').innerHTML = `<div class="cmp-duel">
-        ${side(A, sa, ta, d.form.a, '')}
-        <div class="cmp-vs"><div class="small text-secondary text-uppercase" style="letter-spacing:.08em">Confronto direto</div>
+        ${side(A, sa, taTitles, d.form.a, '')}
+        <div class="cmp-vs"><div class="small text-secondary text-uppercase cmp-vs-label" style="letter-spacing:.08em">Confronto direto</div>
           <div class="cmp-vs-score"><span class="a">${d.h2h.a_wins}</span><span class="text-secondary">×</span><span class="b">${d.h2h.b_wins}</span></div>
-          <div class="small text-secondary">${h2hSub}</div></div>
-        ${side(B, sb, tb, d.form.b, 'b')}</div>
+          <div class="small text-secondary cmp-vs-sub">${h2hSub}</div></div>
+        ${side(B, sb, tbTitles, d.form.b, 'b')}</div>
       <div class="card p-3 mb-4"><div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
         <h5 class="m-0">Evolução do ELO</h5><span class="small text-secondary">Histórico completo de partidas com ELO</span></div>
         ${hasChart ? eloChartShell({ compare: true, legend }) : '<p class="text-secondary mb-0">Nenhum dos atletas tem partidas com ELO.</p>'}</div>
       <div class="row g-3 mb-4">
         <div class="col-lg-7"><div class="card p-3 h-100"><h5>Comparativo de números</h5>
-          <div class="small text-secondary mb-2">Partidas competitivas individuais. O destaque mostra quem leva em cada critério.</div>${metrics}</div></div>
+          <div class="small text-secondary mb-2">Partidas competitivas individuais. Colocações: 1º=5, 2º=3, 3º=1. O destaque mostra quem leva em cada critério.</div>${metrics}</div></div>
         <div class="col-lg-5"><div class="card p-3 h-100"><h5>Adversários em comum</h5>
           <div class="small text-secondary mb-2">Aproveitamento de cada atleta contra os mesmos rivais.</div>${common}</div></div>
       </div>
